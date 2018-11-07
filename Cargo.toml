@@ -1,0 +1,7 @@
+[package]
+name = "llpr"
+version = "0.1.0"
+authors = ["Ferruccio Barletta <ferruccio.barletta@gmail.com>"]
+
+[dependencies]
+quick-error = "1.2.2"
