@@ -3,10 +3,10 @@ use errors::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
-type PdfString = Vec<u8>;
+pub type PdfString = Vec<u8>;
 
-#[derive(Debug, PartialEq)]
-pub struct PdfName(String);
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct PdfName(pub String);
 
 #[derive(Debug, PartialEq)]
 pub enum PdfToken {

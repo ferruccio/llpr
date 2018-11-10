@@ -4,10 +4,11 @@ quick_error! {
     #[derive(Debug)]
     pub enum PdfError {
         InvalidPdf(detail: &'static str) {
+            description("invalid pdf file")
             display("Invalid PDF file: {}", detail)
         }
         EndOfFile {
-            display("unexpected end of file")
+            description("unexpected end of file")
         }
         IoError(err: std::io::Error) {
             description(err.description())
