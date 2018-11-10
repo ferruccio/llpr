@@ -52,6 +52,7 @@ impl<S> PdfSource<S> where S: Read + Seek {
         let trailer_position = find_trailer(position, &buffer)?;
         let mut ps = PdfSource { reader: TokenReader::new(source) };
         ps.reader.seek(SeekFrom::Start(trailer_position))?;
+        let (trailer, startxref) = ps.read_trailer()?;
         Ok(ps)
     }
 
@@ -144,7 +145,22 @@ impl<S> PdfSource<S> where S: Read + Seek {
             }
         }
     }
+
+    fn read_trailer(&mut self) -> Result<(Dictionary, u64)>
+    where S: Read + Seek {
+        if let Some(PdfObject::Dictionary(trailer_dict)) = self.next()? {
+            if let Some(PdfObject::Keyword(ref keyword)) = self.next()? {
+                if keyword == "startxref" {
+                    if let Some(PdfObject::Number(Number::Integer(addr))) = self.next()? {
+                        return Ok((trailer_dict, addr as u64));
+                    }
+                }
+            }
+        }
+        Err(PdfError::InvalidPdf("invalid pdf trailer"))
+    }
 }
+
 
 fn validate_pdf<S>(source: &mut S) -> Result<()>
 where S: Read + Seek {
