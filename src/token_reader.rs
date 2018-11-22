@@ -5,12 +5,21 @@ type Result<T> = ::std::result::Result<T, PdfError>;
 
 pub type PdfString = Vec<u8>;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct PdfName(pub String);
+include!(concat!(env!("OUT_DIR"), "/codegen_names.rs"));
+
+fn pdf_name(name: &str) -> Option<PdfName> {
+    NAMES.get(name).cloned()
+}
+
+include!(concat!(env!("OUT_DIR"), "/codegen_keywords.rs"));
+
+fn pdf_keyword(keyword: &str) -> Option<PdfKeyword> {
+    KEYWORDS.get(keyword).cloned()
+}
 
 #[derive(Debug, PartialEq)]
 pub enum PdfToken {
-    Ident(String),
+    Keyword(PdfKeyword),
     Integer(i64),
     Real(f64),
     Name(PdfName),
@@ -101,7 +110,10 @@ impl<S> TokenReader<S> where S: Read + Seek {
                 ch @ 'A'...'Z' | ch @ 'a'...'z' => ident.push(ch),
                 _ => {
                     self.backup();
-                    return Ok(PdfToken::Ident(ident));
+                    return match pdf_keyword(&ident) {
+                        Some(keyword) => Ok(PdfToken::Keyword(keyword)),
+                        None => Ok(PdfToken::Keyword(PdfKeyword::Unknown))
+                    }
                 }
             }
         }
@@ -136,7 +148,10 @@ impl<S> TokenReader<S> where S: Read + Seek {
                 ch @ 'A'...'Z' | ch @ 'a'...'z' => name.push(ch),
                 _ => {
                     self.backup();
-                    return Ok(PdfToken::Name(PdfName(name)));
+                    return match pdf_name(&name) {
+                        Some(name) => Ok(PdfToken::Name(name)),
+                        None => Ok(PdfToken::Name(PdfName::Unknown))
+                    };
                 }
             }
         }
@@ -243,14 +258,14 @@ mod tests {
     }
 
     #[test]
-    fn identifiers() {
-        let mut tr = TokenReader::new(tokens("ident Ident\nIDENT "));
+    fn keywords() {
+        let mut tr = TokenReader::new(tokens("trailer false\nwho_knows "));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Ident("ident".to_owned()));
+        assert_eq!(tok, PdfToken::Keyword(PdfKeyword::trailer));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Ident("Ident".to_owned()));
+        assert_eq!(tok, PdfToken::Keyword(PdfKeyword::r#false));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Ident("IDENT".to_owned()));
+        assert_eq!(tok, PdfToken::Keyword(PdfKeyword::Unknown));
     }
 
     #[test]
@@ -285,15 +300,13 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut tr = TokenReader::new(tokens("/Name /size /TEST /AnotherName "));
+        let mut tr = TokenReader::new(tokens("/Root /Size /WhoKnows "));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Name(PdfName("Name".to_owned())));
+        assert_eq!(tok, PdfToken::Name(PdfName::Root));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Name(PdfName("size".to_owned())));
+        assert_eq!(tok, PdfToken::Name(PdfName::Size));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Name(PdfName("TEST".to_owned())));
-        let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Name(PdfName("AnotherName".to_owned())));
+        assert_eq!(tok, PdfToken::Name(PdfName::Unknown));
     }
 
     #[test]

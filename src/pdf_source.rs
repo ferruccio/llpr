@@ -1,4 +1,4 @@
-use token_reader::{TokenReader, PdfName, PdfString, PdfToken};
+use token_reader::{TokenReader, PdfKeyword, PdfName, PdfString, PdfToken};
 use std::io::{Read, Seek, SeekFrom};
 use std::collections::HashMap;
 use errors::*;
@@ -28,8 +28,8 @@ pub enum Number {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum PdfObject {
-    Keyword(String),
     Null,
+    Keyword(PdfKeyword),
     Boolean(bool),
     Number(Number),
     String(PdfString),
@@ -69,7 +69,12 @@ impl<S> PdfSource<S> where S: Read + Seek {
 
     pub fn next(&mut self) -> Result<Option<PdfObject>> {
         match self.reader.next()? {
-            PdfToken::Ident(id) => Ok(Some(self.ident(&id))),
+            PdfToken::Keyword(keyword) => match keyword {
+                PdfKeyword::null => Ok(Some(PdfObject::Null)),
+                PdfKeyword::r#true => Ok(Some(PdfObject::Boolean(true))),
+                PdfKeyword::r#false => Ok(Some(PdfObject::Boolean(false))),
+                _ => Ok(Some(PdfObject::Keyword(keyword)))
+            }
             PdfToken::Integer(i) => Ok(Some(PdfObject::Number(Number::Integer(i)))),
             PdfToken::Real(r) => Ok(Some(PdfObject::Number(Number::Real(r)))),
             PdfToken::Name(name) => Ok(Some(PdfObject::Name(name))),
@@ -80,21 +85,13 @@ impl<S> PdfSource<S> where S: Read + Seek {
         }
     }
 
-    fn ident(&self, id: &str) -> PdfObject {
-        match id {
-            "null" => PdfObject::Null,
-            "true" => PdfObject::Boolean(true),
-            "false" => PdfObject::Boolean(false),
-            id @ _ => PdfObject::Keyword(id.to_owned())
-        }
-    }
-
     fn array(&mut self) -> Result<Option<PdfObject>> {
         let mut a = Box::new(vec![]);
         loop {
             match self.next()? {
-                Some(PdfObject::Keyword(ref keyword))
-                    if keyword == "R" => self.reference(&mut a)?,
+                Some(PdfObject::Keyword(PdfKeyword::R)) => self.reference(&mut a)?,
+                // Some(PdfObject::Keyword(ref keyword))
+                //     if keyword == PdfKeyword::R => self.reference(&mut a)?,
                 Some(obj) => a.push(obj),
                 None => return Ok(Some(PdfObject::Array(a)))
             }
@@ -105,8 +102,9 @@ impl<S> PdfSource<S> where S: Read + Seek {
         let mut a = vec![];
         loop {
             match self.next()? {
-                Some(PdfObject::Keyword(ref keyword))
-                    if keyword == "R" => self.reference(&mut a)?,
+                Some(PdfObject::Keyword(PdfKeyword::R)) => self.reference(&mut a)?,
+                // Some(PdfObject::Keyword(ref keyword))
+                //     if keyword == PdfKeyword::R => self.reference(&mut a)?,
                 Some(obj) => a.push(obj),
                 None => {
                     if a.len() % 2 != 0 {
@@ -149,8 +147,8 @@ impl<S> PdfSource<S> where S: Read + Seek {
     fn read_trailer(&mut self) -> Result<(Dictionary, u64)>
     where S: Read + Seek {
         if let Some(PdfObject::Dictionary(trailer_dict)) = self.next()? {
-            if let Some(PdfObject::Keyword(ref keyword)) = self.next()? {
-                if keyword == "startxref" {
+            if let Some(PdfObject::Keyword(keyword)) = self.next()? {
+                if keyword == PdfKeyword::startxref {
                     if let Some(PdfObject::Number(Number::Integer(addr))) = self.next()? {
                         return Ok((trailer_dict, addr as u64));
                     }
@@ -273,11 +271,11 @@ mod tests {
     #[test]
     fn keywords() {
         let mut ps = PdfSource::without_validation(tokens(
-            " keyword\n\tKeyWord "));
+            " trailer\n\txref "));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Keyword("keyword".to_owned()));
+        assert_eq!(n, PdfObject::Keyword(PdfKeyword::trailer));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Keyword("KeyWord".to_owned()));
+        assert_eq!(n, PdfObject::Keyword(PdfKeyword::xref));
     }
 
     #[test]
@@ -332,11 +330,11 @@ mod tests {
     #[test]
     fn names() {
         let mut ps = PdfSource::without_validation(tokens(
-            "/Name /AnotherName "));
+            "/Root /Size "));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Name(PdfName("Name".to_owned())));
+        assert_eq!(n, PdfObject::Name(PdfName::Root));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Name(PdfName("AnotherName".to_owned())));
+        assert_eq!(n, PdfObject::Name(PdfName::Size));
     }
 
     #[test]
@@ -356,28 +354,29 @@ mod tests {
     fn dictionary() {
         let mut ps1 = PdfSource::without_validation(tokens(
             r##"<<
-                /Name (Fred)
-                /Age 35
-                /Friends [(Barney) (Betty)]
+                /Root (this is a test)
+                /Size 35
+                /FontDescriptor [(xyzzy) (plover)]
                 /Ref 10 0 R
-                /Wife <<
-                    /Name (Wilma)
-                    /Age 32
-                    /Ref 11 2 R
+                /ID <<
+                    /Type (some type)
+                    /Length 32
+                    /FontFile 11 2 R
                 >>
             >> "##));
         let n1 = ps1.next_raw();
         let mut ps2 = PdfSource::without_validation(tokens(
             r##"<<
-                /Wife <<
-                    /Age    32
-                    /Name    (Wilma)
-                    /Ref 11 2 R
+                /Root    (this is a test)
+                /Size   35
+                /FontDescriptor [(xyzzy)      (plover)]
+                /Ref 10   0    R
+                /ID <<
+                    /Type  (some type)
+
+                    /Length     32
+                    /FontFile 11 2 R
                 >>
-                /Name (Fred)
-                /Age  35
-                /Ref    10 0 R
-                /Friends   [(Barney)   (Betty)]
             >> "##));
         let n2 = ps2.next_raw();
         assert_eq!(n1, n2);

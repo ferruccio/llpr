@@ -1,4 +1,5 @@
 extern crate quick_error;
+extern crate phf;
 
 mod errors;
 mod token_reader;
