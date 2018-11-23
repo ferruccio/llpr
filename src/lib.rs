@@ -1,8 +1,8 @@
-extern crate quick_error;
 extern crate phf;
+extern crate quick_error;
 
 mod errors;
-mod token_reader;
 mod pdf_source;
+mod token_reader;
 
 pub use pdf_source::PdfSource;

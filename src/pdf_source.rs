@@ -1,37 +1,37 @@
-use token_reader::{TokenReader, PdfKeyword, PdfName, PdfString, PdfToken};
-use std::io::{Read, Seek, SeekFrom};
-use std::collections::HashMap;
 use errors::*;
+use std::collections::HashMap;
+use std::io::{Read, Seek, SeekFrom};
+use token_reader::{PdfKeyword, PdfName, PdfString, PdfToken, TokenReader};
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
 type Array = Box<Vec<PdfObject>>;
 type Dictionary = Box<HashMap<PdfName, PdfObject>>;
 
-const FREE_GEN:u16 = 0xffff;
+const FREE_GEN: u16 = 0xffff;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct XRefEntry {
     gen: u16,
-    position: u64
+    position: u64,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Reference {
     id: u32,
-    gen: u16
+    gen: u16,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Stream {
     header: Dictionary,
-    position: u64
+    position: u64,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum PdfNumber {
     Integer(i64),
-    Real(f64)
+    Real(f64),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -45,23 +45,31 @@ pub enum PdfObject {
     Array(Array),
     Dictionary(Dictionary),
     Stream(Stream),
-    Reference(Reference)
+    Reference(Reference),
 }
 
-pub struct PdfSource<S> where S: Read + Seek {
+pub struct PdfSource<S>
+where
+    S: Read + Seek,
+{
     reader: TokenReader<S>,
-    xref: Vec<XRefEntry>
+    xref: Vec<XRefEntry>,
 }
 
-impl<S> PdfSource<S> where S: Read + Seek {
+impl<S> PdfSource<S>
+where
+    S: Read + Seek,
+{
     pub fn new(mut source: S) -> Result<PdfSource<S>>
-    where S: Read + Seek {
+    where
+        S: Read + Seek,
+    {
         validate_pdf(&mut source)?;
         let (position, buffer) = read_tail(&mut source)?;
         let trailer_position = find_trailer(position, &buffer)?;
         let mut ps = PdfSource {
             reader: TokenReader::new(source),
-            xref: vec![]
+            xref: vec![],
         };
         ps.reader.seek(SeekFrom::Start(trailer_position))?;
         let (trailer, startxref) = ps.read_trailer()?;
@@ -71,8 +79,13 @@ impl<S> PdfSource<S> where S: Read + Seek {
 
     #[cfg(test)]
     pub fn without_validation(source: S) -> PdfSource<S>
-    where S: Read + Seek {
-        PdfSource { reader: TokenReader::new(source), xref: vec![] }
+    where
+        S: Read + Seek,
+    {
+        PdfSource {
+            reader: TokenReader::new(source),
+            xref: vec![],
+        }
     }
 
     #[cfg(test)]
@@ -80,67 +93,19 @@ impl<S> PdfSource<S> where S: Read + Seek {
         self.next().unwrap().unwrap()
     }
 
-    pub fn read_xref(&mut self, trailer: Dictionary, startxref: u64) -> Result<()> {
-        let size = match trailer.get(&PdfName::Size) {
-            Some(PdfObject::Number(PdfNumber::Integer(i))) => *i as usize,
-            _ => return Err(PdfError::InvalidPdf("invalid/missing Size entry in trailer"))
-        };
-        self.xref.resize(size, XRefEntry { gen: FREE_GEN, position: 0 });
-        self.reader.seek(SeekFrom::Start(startxref))?;
-        match self.next()? {
-            Some(PdfObject::Keyword(PdfKeyword::xref)) => {},
-            _ => return Err(PdfError::InvalidPdf("missing xref"))
-        }
-        loop {
-            let first = match self.next()? {
-                Some(PdfObject::Number(PdfNumber::Integer(i))) => i as usize,
-                _ => return Ok(())
-            };
-            let count = match self.next()? {
-                Some(PdfObject::Number(PdfNumber::Integer(i))) => i as usize,
-                _ => return Ok(())
-            };
-            for index in first..first + count {
-                let position = match self.next()? {
-                    Some(PdfObject::Number(PdfNumber::Integer(i))) => i as u64,
-                    _ => return Err(PdfError::InvalidPdf("invalid xref position"))
-                };
-                let gen = match self.next()? {
-                    Some(PdfObject::Number(PdfNumber::Integer(i))) => i as u16,
-                    _ => return Err(PdfError::InvalidPdf("invalid xref gen"))
-                };
-                match self.next()? {
-                    Some(PdfObject::Keyword(PdfKeyword::n)) => {
-                        if index < self.xref.len() {
-                            self.xref[index] = XRefEntry { gen: gen, position: position };
-                        }
-                    }
-                    Some(PdfObject::Keyword(PdfKeyword::f)) => {
-                        if index < self.xref.len() {
-                            self.xref[index] = XRefEntry { gen: FREE_GEN, position: 0 };
-                        }
-                    }
-                    _ => return Err(PdfError::InvalidPdf("invalid xref entry"))
-                }
-            }
-        }
-    }
-
     pub fn next(&mut self) -> Result<Option<PdfObject>> {
         match self.reader.next()? {
-            PdfToken::Keyword(keyword) => match keyword {
-                PdfKeyword::null => Ok(Some(PdfObject::Null)),
-                PdfKeyword::r#true => Ok(Some(PdfObject::Boolean(true))),
-                PdfKeyword::r#false => Ok(Some(PdfObject::Boolean(false))),
-                _ => Ok(Some(PdfObject::Keyword(keyword)))
-            }
+            PdfToken::Keyword(PdfKeyword::null) => Ok(Some(PdfObject::Null)),
+            PdfToken::Keyword(PdfKeyword::r#true) => Ok(Some(PdfObject::Boolean(true))),
+            PdfToken::Keyword(PdfKeyword::r#false) => Ok(Some(PdfObject::Boolean(false))),
+            PdfToken::Keyword(keyword) => Ok(Some(PdfObject::Keyword(keyword))),
             PdfToken::Integer(i) => Ok(Some(PdfObject::Number(PdfNumber::Integer(i)))),
             PdfToken::Real(r) => Ok(Some(PdfObject::Number(PdfNumber::Real(r)))),
             PdfToken::Name(name) => Ok(Some(PdfObject::Name(name))),
             PdfToken::Str(s) => Ok(Some(PdfObject::String(s))),
             PdfToken::BeginArray => self.array(),
             PdfToken::BeginDictionary => self.dictionary(),
-            PdfToken::EndArray | PdfToken::EndDictionary => Ok(None)
+            PdfToken::EndArray | PdfToken::EndDictionary => Ok(None),
         }
     }
 
@@ -150,7 +115,7 @@ impl<S> PdfSource<S> where S: Read + Seek {
             match self.next()? {
                 Some(PdfObject::Keyword(PdfKeyword::R)) => self.reference(&mut a)?,
                 Some(obj) => a.push(obj),
-                None => return Ok(Some(PdfObject::Array(a)))
+                None => return Ok(Some(PdfObject::Array(a))),
             }
         }
     }
@@ -168,8 +133,10 @@ impl<S> PdfSource<S> where S: Read + Seek {
                     let mut m: Box<HashMap<PdfName, PdfObject>> = Box::new(HashMap::new());
                     for i in (0..a.len()).step_by(2) {
                         match (&a[i], &a[i + 1]) {
-                            (PdfObject::Name(name), obj) => { m.insert(name.clone(), obj.clone()); }
-                            _ => return Err(PdfError::InvalidPdf("malformed dictionary"))
+                            (PdfObject::Name(name), obj) => {
+                                m.insert(name.clone(), obj.clone());
+                            }
+                            _ => return Err(PdfError::InvalidPdf("malformed dictionary")),
                         }
                     }
                     return Ok(Some(PdfObject::Dictionary(m)));
@@ -185,38 +152,106 @@ impl<S> PdfSource<S> where S: Read + Seek {
             let gen = a.pop().unwrap();
             let id = a.pop().unwrap();
             match (id, gen) {
-                (PdfObject::Number(PdfNumber::Integer(id)),
-                 PdfObject::Number(PdfNumber::Integer(gen)))
-                    => {
-                        a.push(PdfObject::Reference(Reference {
-                            id: id as u32,
-                            gen: gen as u16
-                        }));
-                        Ok(())
-                    },
-                _ => Err(PdfError::InvalidPdf("invalid arguments to R"))
+                (
+                    PdfObject::Number(PdfNumber::Integer(id)),
+                    PdfObject::Number(PdfNumber::Integer(gen)),
+                ) => {
+                    a.push(PdfObject::Reference(Reference {
+                        id: id as u32,
+                        gen: gen as u16,
+                    }));
+                    Ok(())
+                }
+                _ => Err(PdfError::InvalidPdf("invalid arguments to R")),
             }
         }
     }
 
-    fn read_trailer(&mut self) -> Result<(Dictionary, u64)>
-    where S: Read + Seek {
+    fn read_trailer(&mut self) -> Result<(Dictionary, u64)> {
         if let Some(PdfObject::Dictionary(trailer_dict)) = self.next()? {
-            if let Some(PdfObject::Keyword(keyword)) = self.next()? {
-                if keyword == PdfKeyword::startxref {
-                    if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = self.next()? {
-                        return Ok((trailer_dict, addr as u64));
-                    }
-                }
+            self.need_keyword(PdfKeyword::startxref)?;
+            if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = self.next()? {
+                return Ok((trailer_dict, addr as u64));
             }
         }
         Err(PdfError::InvalidPdf("invalid pdf trailer"))
     }
+
+    fn need_keyword(&mut self, keyword: PdfKeyword) -> Result<()> {
+        match self.next()? {
+            Some(PdfObject::Keyword(ref k)) if k == &keyword => Ok(()),
+            _ => Err(PdfError::KeywordExpected(keyword)),
+        }
+    }
+
+    fn read_xref(&mut self, trailer: Dictionary, startxref: u64) -> Result<()> {
+        let size = match trailer.get(&PdfName::Size) {
+            Some(PdfObject::Number(PdfNumber::Integer(s))) => *s as usize,
+            _ => {
+                return Err(PdfError::InvalidPdf(
+                    "invalid/missing Size entry in trailer",
+                ))
+            }
+        };
+        self.xref.resize(
+            size,
+            XRefEntry {
+                gen: FREE_GEN,
+                position: 0,
+            },
+        );
+        self.reader.seek(SeekFrom::Start(startxref))?;
+        self.need_keyword(PdfKeyword::xref)?;
+        loop {
+            let first = self.next()?;
+            let count = self.next()?;
+            let (first, count) = match (first, count) {
+                (
+                    Some(PdfObject::Number(PdfNumber::Integer(f))),
+                    Some(PdfObject::Number(PdfNumber::Integer(c))),
+                ) => (f as usize, c as usize),
+                _ => return Ok(()),
+            };
+            for index in first..first + count {
+                let entry = self.read_xref_entry()?;
+                if index < self.xref.len() {
+                    self.xref[index] = entry;
+                }
+            }
+        }
+    }
+
+    fn read_xref_entry(&mut self) -> Result<XRefEntry> {
+        let position = self.next()?;
+        let gen = self.next()?;
+        let flag = self.next()?;
+        match (position, gen, flag) {
+            (
+                Some(PdfObject::Number(PdfNumber::Integer(p))),
+                Some(PdfObject::Number(PdfNumber::Integer(g))),
+                Some(PdfObject::Keyword(PdfKeyword::n)),
+            ) => Ok(XRefEntry {
+                gen: g as u16,
+                position: p as u64,
+            }),
+            (
+                Some(PdfObject::Number(PdfNumber::Integer(_))),
+                Some(PdfObject::Number(PdfNumber::Integer(_))),
+                Some(PdfObject::Keyword(PdfKeyword::f)),
+            ) => Ok(XRefEntry {
+                gen: FREE_GEN,
+                position: 0,
+            }),
+
+            _ => Err(PdfError::InvalidPdf("invalid xref entry")),
+        }
+    }
 }
 
-
 fn validate_pdf<S>(source: &mut S) -> Result<()>
-where S: Read + Seek {
+where
+    S: Read + Seek,
+{
     source.seek(SeekFrom::Start(0))?;
     let expected_header = "%PDF-1.";
     let mut buffer = [0; 7];
@@ -228,8 +263,10 @@ where S: Read + Seek {
 }
 
 fn read_tail<S>(source: &mut S) -> Result<(u64, Vec<u8>)>
-where S: Read + Seek {
-    const BUFFER_SIZE:usize = 8 * 1024;
+where
+    S: Read + Seek,
+{
+    const BUFFER_SIZE: usize = 8 * 1024;
     let filesize = source.seek(SeekFrom::End(0))? as usize;
     let position = if filesize < BUFFER_SIZE {
         source.seek(SeekFrom::Start(0))?
@@ -243,7 +280,7 @@ where S: Read + Seek {
 
 fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
     let trailer = "trailer".as_bytes();
-    for i in (0 ..= buffer.len() - trailer.len()).rev() {
+    for i in (0..=buffer.len() - trailer.len()).rev() {
         if &buffer[i..i + trailer.len()] == trailer {
             return Ok(position + i as u64 + trailer.len() as u64);
         }
@@ -255,7 +292,7 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
 mod tests {
     use super::*;
     use std::fs::File;
-    use std::io::{Read, Seek, Cursor};
+    use std::io::{Cursor, Read, Seek};
 
     fn open_test_file(name: &str) -> File {
         let src = env!("CARGO_MANIFEST_DIR");
@@ -292,7 +329,7 @@ mod tests {
         let buffer = "blah blah blah trailer blah blah blah".as_bytes();
         let position = find_trailer(1000, &buffer);
         assert!(position.is_ok());
-        assert_eq!(position.unwrap(),  1000 + 22);
+        assert_eq!(position.unwrap(), 1000 + 22);
     }
 
     #[test]
@@ -300,7 +337,7 @@ mod tests {
         let buffer = "blah blah blah trailer".as_bytes();
         let position = find_trailer(0, &buffer);
         assert!(position.is_ok());
-        assert_eq!(position.unwrap(),  22);
+        assert_eq!(position.unwrap(), 22);
     }
 
     #[test]
@@ -322,11 +359,9 @@ mod tests {
         Cursor::new(source.as_bytes())
     }
 
-
     #[test]
     fn keywords() {
-        let mut ps = PdfSource::without_validation(tokens(
-            " trailer\n\txref "));
+        let mut ps = PdfSource::without_validation(tokens(" trailer\n\txref "));
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::Keyword(PdfKeyword::trailer));
         let n = ps.next_raw();
@@ -335,8 +370,7 @@ mod tests {
 
     #[test]
     fn value_keywords() {
-        let mut ps = PdfSource::without_validation(tokens(
-            "null true false "));
+        let mut ps = PdfSource::without_validation(tokens("null true false "));
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::Null);
         let n = ps.next_raw();
@@ -347,8 +381,7 @@ mod tests {
 
     #[test]
     fn numbers() {
-        let mut ps = PdfSource::without_validation(tokens(
-            "0 0.0 1 1.0 -10.34 10000.5 "));
+        let mut ps = PdfSource::without_validation(tokens("0 0.0 1 1.0 -10.34 10000.5 "));
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::Number(PdfNumber::Integer(0)));
         let n = ps.next_raw();
@@ -366,14 +399,19 @@ mod tests {
     #[test]
     fn strings() {
         let mut ps = PdfSource::without_validation(tokens(
-            "() (string) (Another \t (string)) <> <a1b2> <a1b>"));
+            "() (string) (Another \t (string)) <> <a1b2> <a1b>",
+        ));
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::String(vec![]));
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::String(vec![115, 116, 114, 105, 110, 103]));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::String(vec![65, 110, 111, 116, 104, 101, 114,
-            32, 9, 32, 40, 115, 116, 114, 105, 110, 103, 41]));
+        assert_eq!(
+            n,
+            PdfObject::String(vec![
+                65, 110, 111, 116, 104, 101, 114, 32, 9, 32, 40, 115, 116, 114, 105, 110, 103, 41
+            ])
+        );
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::String(vec![]));
         let n = ps.next_raw();
@@ -384,8 +422,7 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut ps = PdfSource::without_validation(tokens(
-            "/Root /Size "));
+        let mut ps = PdfSource::without_validation(tokens("/Root /Size "));
         let n = ps.next_raw();
         assert_eq!(n, PdfObject::Name(PdfName::Root));
         let n = ps.next_raw();
@@ -394,15 +431,19 @@ mod tests {
 
     #[test]
     fn array() {
-        let mut ps = PdfSource::without_validation(tokens(
-            "[0 null [(string)] 1.0] "));
+        let mut ps = PdfSource::without_validation(tokens("[0 null [(string)] 1.0] "));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Array(Box::new(vec![
-            PdfObject::Number(PdfNumber::Integer(0)),
-            PdfObject::Null,
+        assert_eq!(
+            n,
             PdfObject::Array(Box::new(vec![
-                PdfObject::String(vec![115, 116, 114, 105, 110, 103])])),
-            PdfObject::Number(PdfNumber::Real(1.0))])));
+                PdfObject::Number(PdfNumber::Integer(0)),
+                PdfObject::Null,
+                PdfObject::Array(Box::new(vec![PdfObject::String(vec![
+                    115, 116, 114, 105, 110, 103
+                ])])),
+                PdfObject::Number(PdfNumber::Real(1.0))
+            ]))
+        );
     }
 
     #[test]
@@ -418,7 +459,8 @@ mod tests {
                     /Length 32
                     /FontFile 11 2 R
                 >>
-            >> "##));
+            >> "##,
+        ));
         let n1 = ps1.next_raw();
         let mut ps2 = PdfSource::without_validation(tokens(
             r##"<<
@@ -432,7 +474,8 @@ mod tests {
                     /Length     32
                     /FontFile 11 2 R
                 >>
-            >> "##));
+            >> "##,
+        ));
         let n2 = ps2.next_raw();
         assert_eq!(n1, n2);
     }
@@ -441,10 +484,40 @@ mod tests {
     fn minimal_pdf_xref() {
         let pdf = PdfSource::new(open_test_file("minimal.pdf")).unwrap();
         assert_eq!(pdf.xref.len(), 5);
-        assert_eq!(pdf.xref[0], XRefEntry { gen: FREE_GEN, position: 0 });
-        assert_eq!(pdf.xref[1], XRefEntry { gen: 0, position: 18 });
-        assert_eq!(pdf.xref[2], XRefEntry { gen: 0, position: 77 });
-        assert_eq!(pdf.xref[3], XRefEntry { gen: 0, position: 178 });
-        assert_eq!(pdf.xref[4], XRefEntry { gen: 0, position: 457 });
+        assert_eq!(
+            pdf.xref[0],
+            XRefEntry {
+                gen: FREE_GEN,
+                position: 0
+            }
+        );
+        assert_eq!(
+            pdf.xref[1],
+            XRefEntry {
+                gen: 0,
+                position: 18
+            }
+        );
+        assert_eq!(
+            pdf.xref[2],
+            XRefEntry {
+                gen: 0,
+                position: 77
+            }
+        );
+        assert_eq!(
+            pdf.xref[3],
+            XRefEntry {
+                gen: 0,
+                position: 178
+            }
+        );
+        assert_eq!(
+            pdf.xref[4],
+            XRefEntry {
+                gen: 0,
+                position: 457
+            }
+        );
     }
 }

@@ -1,5 +1,5 @@
-use std::io::{Read, Seek, SeekFrom};
 use errors::*;
+use std::io::{Read, Seek, SeekFrom};
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -27,16 +27,22 @@ pub enum PdfToken {
     BeginArray,
     EndArray,
     BeginDictionary,
-    EndDictionary
+    EndDictionary,
 }
 
-pub struct TokenReader<S> where S: Read + Seek {
-    source: S
+pub struct TokenReader<S>
+where
+    S: Read + Seek,
+{
+    source: S,
 }
 
-impl<S> TokenReader<S> where S: Read + Seek {
+impl<S> TokenReader<S>
+where
+    S: Read + Seek,
+{
     pub fn new(source: S) -> TokenReader<S> {
-        TokenReader{ source: source }
+        TokenReader { source: source }
     }
 
     pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -82,8 +88,8 @@ impl<S> TokenReader<S> where S: Read + Seek {
         let syntax_error = Err(PdfError::InvalidPdf("syntax error"));
         self.skip_whitespace()?;
         match self.getch()? {
-            ch @ 'A'...'Z' | ch @ 'a'...'z' => self.identifier(ch),
-            ch @ '+' | ch @ '-' | ch @ '.' | ch @ '0'...'9' => self.numeric(ch),
+            ch @ 'A'...'Z' | ch @ 'a'...'z' => self.keyword(ch),
+            ch @ '+' | ch @ '-' | ch @ '.' | ch @ '0'...'9' => self.number(ch),
             '/' => self.name(),
             '[' => Ok(PdfToken::BeginArray),
             ']' => Ok(PdfToken::EndArray),
@@ -97,29 +103,29 @@ impl<S> TokenReader<S> where S: Read + Seek {
             },
             '>' => match self.getch()? {
                 '>' => Ok(PdfToken::EndDictionary),
-                _ => syntax_error
+                _ => syntax_error,
             },
-            _ => syntax_error
+            _ => syntax_error,
         }
     }
 
-    fn identifier(&mut self, first: char) -> Result<PdfToken> {
-        let mut ident = first.to_string();
+    fn keyword(&mut self, first: char) -> Result<PdfToken> {
+        let mut keyword = first.to_string();
         loop {
             match self.getch()? {
-                ch @ 'A'...'Z' | ch @ 'a'...'z' => ident.push(ch),
+                ch @ 'A'...'Z' | ch @ 'a'...'z' => keyword.push(ch),
                 _ => {
                     self.backup();
-                    return match pdf_keyword(&ident) {
+                    return match pdf_keyword(&keyword) {
                         Some(keyword) => Ok(PdfToken::Keyword(keyword)),
-                        None => Ok(PdfToken::Keyword(PdfKeyword::Unknown))
-                    }
+                        None => Ok(PdfToken::Keyword(PdfKeyword::Unknown)),
+                    };
                 }
             }
         }
     }
 
-    fn numeric(&mut self, first: char) -> Result<PdfToken> {
+    fn number(&mut self, first: char) -> Result<PdfToken> {
         let mut number = first.to_string();
         let mut decimal = first == '.';
         loop {
@@ -150,7 +156,7 @@ impl<S> TokenReader<S> where S: Read + Seek {
                     self.backup();
                     return match pdf_name(&name) {
                         Some(name) => Ok(PdfToken::Name(name)),
-                        None => Ok(PdfToken::Name(PdfName::Unknown))
+                        None => Ok(PdfToken::Name(PdfName::Unknown)),
                     };
                 }
             }
@@ -165,14 +171,14 @@ impl<S> TokenReader<S> where S: Read + Seek {
                 '(' => {
                     string.push('(' as u8);
                     nesting += 1;
-                },
+                }
                 ')' => {
                     if nesting == 0 {
                         return Ok(PdfToken::Str(string));
                     }
                     string.push(')' as u8);
                     nesting -= 1;
-                },
+                }
                 '\\' => match self.getch()? {
                     'n' => string.push(0x0a),
                     'r' => string.push(0x0d),
@@ -181,30 +187,30 @@ impl<S> TokenReader<S> where S: Read + Seek {
                     'f' => string.push(0x0c),
                     '(' => string.push('(' as u8),
                     ')' => string.push(')' as u8),
-                    ch @ '0'...'7' => {
-                        let mut octal = ch as u8 - '0' as u8;
-                        let mut digits = 1;
-                        loop {
-                            match self.getch()? {
-                                ch @ '0'...'7' => {
-                                    octal = (octal << 3) | (ch as u8 - '0' as u8);
-                                    digits += 1;
-                                    if digits == 3 {
-                                        string.push(octal);
-                                        break;
-                                    }
-                                }
-                                _ => {
-                                    string.push(octal);
-                                    self.backup();
-                                    break;
-                                }
-                            }
-                        }
-                    },
+                    ch @ '0'...'7' => string.push(self.octal_escape(ch)?),
                     _ => {}
+                },
+                ch @ _ => string.push(ch as u8),
+            }
+        }
+    }
+
+    fn octal_escape(&mut self, first: char) -> Result<u8> {
+        let mut octal = first as u8 - '0' as u8;
+        let mut digits = 1;
+        loop {
+            match self.getch()? {
+                ch @ '0'...'7' => {
+                    octal = (octal << 3) | (ch as u8 - '0' as u8);
+                    digits += 1;
+                    if digits == 3 {
+                        return Ok(octal);
+                    }
                 }
-                ch @ _ => string.push(ch as u8)
+                _ => {
+                    self.backup();
+                    return Ok(octal);
+                }
             }
         }
     }
@@ -235,7 +241,7 @@ impl<S> TokenReader<S> where S: Read + Seek {
                     }
                     return Ok(PdfToken::Str(string));
                 }
-                _ => return Err(PdfError::InvalidPdf("unexpected character in hex string"))
+                _ => return Err(PdfError::InvalidPdf("unexpected character in hex string")),
             }
             if first {
                 value = hex;
@@ -246,12 +252,11 @@ impl<S> TokenReader<S> where S: Read + Seek {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use std::io::{Read, Seek, Cursor};
+    use std::io::{Cursor, Read, Seek};
 
     fn tokens(source: &'static str) -> impl Read + Seek {
         Cursor::new(source.as_bytes())
@@ -311,7 +316,8 @@ mod tests {
 
     #[test]
     fn strings() {
-        let mut tr = TokenReader::new(tokens(r###"
+        let mut tr = TokenReader::new(tokens(
+            r###"
 (This is a string)
 (Strings may contain newlines
 and such.)
@@ -321,37 +327,64 @@ special characters ( * ! & } ^ % and so on ).)
 ()
 (It has zero (0) length.)
 (String with escapes: \n \r \t \b \f \( \) \\ \0 \10 \100 \1234)
-"###));
+"###,
+        ));
 
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Str(vec![84, 104, 105, 115, 32, 105, 115, 32,
-            97, 32, 115, 116, 114, 105, 110, 103]));
+        assert_eq!(
+            tok,
+            PdfToken::Str(vec![
+                84, 104, 105, 115, 32, 105, 115, 32, 97, 32, 115, 116, 114, 105, 110, 103
+            ])
+        );
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Str(vec![83, 116, 114, 105, 110, 103, 115, 32,
-            109, 97, 121, 32, 99, 111, 110, 116, 97, 105, 110, 32, 110, 101, 119,
-            108, 105, 110, 101, 115, 10, 97, 110, 100, 32, 115, 117, 99, 104, 46]));
+        assert_eq!(
+            tok,
+            PdfToken::Str(vec![
+                83, 116, 114, 105, 110, 103, 115, 32, 109, 97, 121, 32, 99, 111, 110, 116, 97, 105,
+                110, 32, 110, 101, 119, 108, 105, 110, 101, 115, 10, 97, 110, 100, 32, 115, 117,
+                99, 104, 46
+            ])
+        );
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Str(vec![83, 116, 114, 105, 110, 103, 115, 32,
-            109, 97, 121, 32, 99, 111, 110, 116, 97, 105, 110, 32, 98, 97, 108,
-            97, 110, 99, 101, 100, 32, 112, 97, 114, 101, 110, 116, 104, 101, 115,
-            101, 115, 32, 40, 32, 41, 32, 97, 110, 100, 10, 115, 112, 101, 99, 105,
-            97, 108, 32, 99, 104, 97, 114, 97, 99, 116, 101, 114, 115, 32, 40, 32,
-            42, 32, 33, 32, 38, 32, 125, 32, 94, 32, 37, 32, 97, 110, 100, 32, 115,
-            111, 32, 111, 110, 32, 41, 46]));
+        assert_eq!(
+            tok,
+            PdfToken::Str(vec![
+                83, 116, 114, 105, 110, 103, 115, 32, 109, 97, 121, 32, 99, 111, 110, 116, 97, 105,
+                110, 32, 98, 97, 108, 97, 110, 99, 101, 100, 32, 112, 97, 114, 101, 110, 116, 104,
+                101, 115, 101, 115, 32, 40, 32, 41, 32, 97, 110, 100, 10, 115, 112, 101, 99, 105,
+                97, 108, 32, 99, 104, 97, 114, 97, 99, 116, 101, 114, 115, 32, 40, 32, 42, 32, 33,
+                32, 38, 32, 125, 32, 94, 32, 37, 32, 97, 110, 100, 32, 115, 111, 32, 111, 110, 32,
+                41, 46
+            ])
+        );
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Str(vec![84, 104, 101, 32, 102, 111, 108, 108,
-            111, 119, 105, 110, 103, 32, 105, 115, 32, 97, 110, 32, 101, 109, 112,
-            116, 121, 32, 115, 116, 114, 105, 110, 103, 46]));
+        assert_eq!(
+            tok,
+            PdfToken::Str(vec![
+                84, 104, 101, 32, 102, 111, 108, 108, 111, 119, 105, 110, 103, 32, 105, 115, 32,
+                97, 110, 32, 101, 109, 112, 116, 121, 32, 115, 116, 114, 105, 110, 103, 46
+            ])
+        );
         let tok = tr.next().unwrap();
         assert_eq!(tok, PdfToken::Str(vec![]));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Str(vec![73, 116, 32, 104, 97, 115, 32, 122, 101,
-            114, 111, 32, 40, 48, 41, 32, 108, 101, 110, 103, 116, 104, 46]));
+        assert_eq!(
+            tok,
+            PdfToken::Str(vec![
+                73, 116, 32, 104, 97, 115, 32, 122, 101, 114, 111, 32, 40, 48, 41, 32, 108, 101,
+                110, 103, 116, 104, 46
+            ])
+        );
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Str(vec![83, 116, 114, 105, 110, 103, 32, 119,
-            105, 116, 104, 32, 101, 115, 99, 97, 112, 101, 115, 58, 32, 10, 32,
-            13, 32, 9, 32, 8, 32, 12, 32, 40, 32, 41, 32, 32, 0, 32, 8, 32, 64,
-            32, 83, 52]));
+        assert_eq!(
+            tok,
+            PdfToken::Str(vec![
+                83, 116, 114, 105, 110, 103, 32, 119, 105, 116, 104, 32, 101, 115, 99, 97, 112,
+                101, 115, 58, 32, 10, 32, 13, 32, 9, 32, 8, 32, 12, 32, 40, 32, 41, 32, 32, 0, 32,
+                8, 32, 64, 32, 83, 52
+            ])
+        );
     }
 
     #[test]

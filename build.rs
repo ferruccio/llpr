@@ -6,20 +6,60 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 fn main() {
-    let names = [ "Unknown",
-        "Ascent", "ASCII85Decode", "ASCIIHexDecode", "CCITTFaxDecode", "Catalog", "Crypt",
-        "DCTDecode", "DL", "Encrypt", "FlateDecode", "Font", "FontDescriptor",
-        "FontFile", "ID", "Info", "JBIG2Decode", "JPXDecode", "Length",
-        "LZWDecode", "Page", "Prev", "Root", "RunLengthDecode", "Size", "SubType",
-        "ToUnicode", "Type"
+    let names = [
+        "Unknown",
+        "Ascent",
+        "ASCII85Decode",
+        "ASCIIHexDecode",
+        "CCITTFaxDecode",
+        "Catalog",
+        "Crypt",
+        "DCTDecode",
+        "DL",
+        "Encrypt",
+        "FlateDecode",
+        "Font",
+        "FontDescriptor",
+        "FontFile",
+        "ID",
+        "Info",
+        "JBIG2Decode",
+        "JPXDecode",
+        "Length",
+        "LZWDecode",
+        "Page",
+        "Prev",
+        "Root",
+        "RunLengthDecode",
+        "Size",
+        "SubType",
+        "ToUnicode",
+        "Type",
     ];
     generate("codegen_names.rs", "NAMES", "PdfName", &names[..]);
 
-    let keywords = [ "Unknown",
-        "endobj", "endstream", "f", "false", "n", "null", "obj", "R", "stream",
-        "trailer", "true", "startxref", "xref"
+    let keywords = [
+        "Unknown",
+        "endobj",
+        "endstream",
+        "f",
+        "false",
+        "n",
+        "null",
+        "obj",
+        "R",
+        "stream",
+        "trailer",
+        "true",
+        "startxref",
+        "xref",
     ];
-    generate("codegen_keywords.rs", "KEYWORDS", "PdfKeyword", &keywords[..]);
+    generate(
+        "codegen_keywords.rs",
+        "KEYWORDS",
+        "PdfKeyword",
+        &keywords[..],
+    );
 }
 
 fn generate(filename: &str, target: &str, typename: &str, entries: &[&str]) {
@@ -34,7 +74,11 @@ fn generate(filename: &str, target: &str, typename: &str, entries: &[&str]) {
     }
     writeln!(&mut file, "}}\n");
 
-    write!(&mut file, "static {}: phf::Map<&'static str, {}> = ", target, typename).unwrap();
+    write!(
+        &mut file,
+        "static {}: phf::Map<&'static str, {}> = ",
+        target, typename
+    ).unwrap();
     let mut builder = phf_codegen::Map::new();
     for &entry in entries {
         builder.entry(entry, &format!("{}::r#{}", typename, entry));
