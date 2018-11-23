@@ -12,6 +12,18 @@ quick_error! {
             description("pdf keyword expected")
             display("pdf keyword expected: {:?}", keyword)
         }
+        InvalidReference {
+            description("reference not found")
+        }
+        InvalidReferenceTarget{
+            description("target does not match reference")
+        }
+        InvalidTrailerDictionary {
+            description("trailer dictionary missing required item(s)")
+        }
+        InvalidCatalog {
+            description("document catalog missing required item(s)")
+        }
         EndOfFile {
             description("unexpected end of file")
         }

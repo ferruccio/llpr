@@ -1,7 +1,10 @@
+use catalog::Catalog;
+use dictionary::Dictionary;
 use errors::*;
-use object_reader::{Dictionary, ObjectReader, PdfNumber, PdfObject};
+use object_reader::{ObjectReader, PdfNumber, PdfObject, Reference};
 use std::io::{Read, Seek, SeekFrom};
-use token_reader::{PdfKeyword, PdfName, TokenReader};
+use token_reader::{PdfKeyword, TokenReader};
+use trailer::Trailer;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -18,7 +21,9 @@ where
     S: Read + Seek,
 {
     reader: ObjectReader<S>,
+    trailer: Trailer,
     xref: Vec<XRefEntry>,
+    catalog: Catalog,
 }
 
 impl<S> PdfSource<S>
@@ -32,94 +37,21 @@ where
         validate_pdf(&mut source)?;
         let (position, buffer) = read_tail(&mut source)?;
         let trailer_position = find_trailer(position, &buffer)?;
-        let mut ps = PdfSource {
-            reader: ObjectReader::new(TokenReader::new(source)),
-            xref: vec![],
-        };
-        ps.reader.seek(SeekFrom::Start(trailer_position))?;
-        let (trailer, startxref) = ps.read_trailer()?;
-        ps.read_xref(trailer, startxref)?;
-        Ok(ps)
-    }
-
-    fn read_trailer(&mut self) -> Result<(Dictionary, u64)> {
-        if let Some(PdfObject::Dictionary(trailer_dict)) = self.reader.next()? {
-            self.need_keyword(PdfKeyword::startxref)?;
-            if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = self.reader.next()? {
-                return Ok((trailer_dict, addr as u64));
-            }
-        }
-        Err(PdfError::InvalidPdf("invalid pdf trailer"))
-    }
-
-    fn need_keyword(&mut self, keyword: PdfKeyword) -> Result<()> {
-        match self.reader.next()? {
-            Some(PdfObject::Keyword(ref k)) if k == &keyword => Ok(()),
-            _ => Err(PdfError::KeywordExpected(keyword)),
-        }
-    }
-
-    fn read_xref(&mut self, trailer: Dictionary, startxref: u64) -> Result<()> {
-        let size = match trailer.get(&PdfName::Size) {
-            Some(PdfObject::Number(PdfNumber::Integer(s))) => *s as usize,
-            _ => {
-                return Err(PdfError::InvalidPdf(
-                    "invalid/missing Size entry in trailer",
-                ))
-            }
-        };
-        self.xref.resize(
-            size,
-            XRefEntry {
-                gen: FREE_GEN,
-                position: 0,
-            },
-        );
-        self.reader.seek(SeekFrom::Start(startxref))?;
-        self.need_keyword(PdfKeyword::xref)?;
-        loop {
-            let first = self.reader.next()?;
-            let count = self.reader.next()?;
-            let (first, count) = match (first, count) {
-                (
-                    Some(PdfObject::Number(PdfNumber::Integer(f))),
-                    Some(PdfObject::Number(PdfNumber::Integer(c))),
-                ) => (f as usize, c as usize),
-                _ => return Ok(()),
-            };
-            for index in first..first + count {
-                let entry = self.read_xref_entry()?;
-                if index < self.xref.len() {
-                    self.xref[index] = entry;
-                }
-            }
-        }
-    }
-
-    fn read_xref_entry(&mut self) -> Result<XRefEntry> {
-        let position = self.reader.next()?;
-        let gen = self.reader.next()?;
-        let flag = self.reader.next()?;
-        match (position, gen, flag) {
-            (
-                Some(PdfObject::Number(PdfNumber::Integer(p))),
-                Some(PdfObject::Number(PdfNumber::Integer(g))),
-                Some(PdfObject::Keyword(PdfKeyword::n)),
-            ) => Ok(XRefEntry {
-                gen: g as u16,
-                position: p as u64,
-            }),
-            (
-                Some(PdfObject::Number(PdfNumber::Integer(_))),
-                Some(PdfObject::Number(PdfNumber::Integer(_))),
-                Some(PdfObject::Keyword(PdfKeyword::f)),
-            ) => Ok(XRefEntry {
-                gen: FREE_GEN,
-                position: 0,
-            }),
-
-            _ => Err(PdfError::InvalidPdf("invalid xref entry")),
-        }
+        let mut reader = ObjectReader::new(TokenReader::new(source));
+        reader.seek(SeekFrom::Start(trailer_position))?;
+        let (trailer_dict, startxref) = read_trailer(&mut reader)?;
+        let trailer = Trailer::new(trailer_dict)?;
+        reader.seek(SeekFrom::Start(startxref))?;
+        let xref = read_xref(&mut reader, trailer.size)?;
+        reader.seek(SeekFrom::Start(object_position(&xref, trailer.root.id)?))?;
+        let catalog_dict = read_object(&mut reader, trailer.root)?;
+        let catalog = Catalog::new(catalog_dict)?;
+        Ok(PdfSource {
+            reader: reader,
+            trailer: trailer,
+            xref: xref,
+            catalog: catalog,
+        })
     }
 }
 
@@ -161,6 +93,99 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
         }
     }
     Err(PdfError::InvalidPdf("no trailer"))
+}
+
+fn read_trailer<S>(reader: &mut ObjectReader<S>) -> Result<(Dictionary, u64)>
+where
+    S: Read + Seek,
+{
+    if let Some(PdfObject::Dictionary(trailer_dict)) = reader.next()? {
+        reader.need_keyword(PdfKeyword::startxref)?;
+        if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = reader.next()? {
+            return Ok((trailer_dict, addr as u64));
+        }
+    }
+    Err(PdfError::InvalidPdf("invalid pdf trailer"))
+}
+
+fn read_xref<S>(reader: &mut ObjectReader<S>, size: u32) -> Result<Vec<XRefEntry>>
+where
+    S: Read + Seek,
+{
+    let mut xref = vec![];
+    xref.resize(
+        size as usize,
+        XRefEntry {
+            gen: FREE_GEN,
+            position: 0,
+        },
+    );
+    reader.need_keyword(PdfKeyword::xref)?;
+    loop {
+        let first = reader.next()?;
+        let count = reader.next()?;
+        let (first, count) = match (first, count) {
+            (
+                Some(PdfObject::Number(PdfNumber::Integer(f))),
+                Some(PdfObject::Number(PdfNumber::Integer(c))),
+            ) => (f as usize, c as usize),
+            _ => return Ok(xref),
+        };
+        for index in first..first + count {
+            let entry = read_xref_entry(reader)?;
+            if index < xref.len() {
+                xref[index] = entry;
+            }
+        }
+    }
+}
+
+fn read_xref_entry<S>(reader: &mut ObjectReader<S>) -> Result<XRefEntry>
+where
+    S: Read + Seek,
+{
+    let position = reader.next()?;
+    let gen = reader.next()?;
+    let flag = reader.next()?;
+    match (position, gen, flag) {
+        (
+            Some(PdfObject::Number(PdfNumber::Integer(p))),
+            Some(PdfObject::Number(PdfNumber::Integer(g))),
+            Some(PdfObject::Keyword(PdfKeyword::n)),
+        ) => Ok(XRefEntry {
+            gen: g as u16,
+            position: p as u64,
+        }),
+        (
+            Some(PdfObject::Number(PdfNumber::Integer(_))),
+            Some(PdfObject::Number(PdfNumber::Integer(_))),
+            Some(PdfObject::Keyword(PdfKeyword::f)),
+        ) => Ok(XRefEntry {
+            gen: FREE_GEN,
+            position: 0,
+        }),
+
+        _ => Err(PdfError::InvalidPdf("invalid xref entry")),
+    }
+}
+
+fn object_position(xref: &Vec<XRefEntry>, id: u32) -> Result<u64> {
+    let id = id as usize;
+    if id >= xref.len() || xref[id].gen == FREE_GEN {
+        Err(PdfError::InvalidReference)
+    } else {
+        Ok(xref[id].position)
+    }
+}
+
+fn read_object<S>(reader: &mut ObjectReader<S>, reference: Reference) -> Result<Dictionary>
+where
+    S: Read + Seek,
+{
+    reader.need_u32(reference.id)?;
+    reader.need_u32(reference.gen as u32)?;
+    reader.need_keyword(PdfKeyword::obj)?;
+    reader.need_dictionary()
 }
 
 #[cfg(test)]

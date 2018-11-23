@@ -1,3 +1,4 @@
+use dictionary::Dictionary;
 use errors::*;
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
@@ -6,12 +7,11 @@ use token_reader::{PdfKeyword, PdfName, PdfString, PdfToken, TokenReader};
 type Result<T> = ::std::result::Result<T, PdfError>;
 
 pub type Array = Box<Vec<PdfObject>>;
-pub type Dictionary = Box<HashMap<PdfName, PdfObject>>;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Reference {
-    id: u32,
-    gen: u16,
+    pub id: u32,
+    pub gen: u16,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -87,6 +87,27 @@ where
             PdfToken::BeginArray => self.array(),
             PdfToken::BeginDictionary => self.dictionary(),
             PdfToken::EndArray | PdfToken::EndDictionary => Ok(None),
+        }
+    }
+
+    pub fn need_keyword(&mut self, keyword: PdfKeyword) -> Result<()> {
+        match self.next()? {
+            Some(PdfObject::Keyword(ref k)) if k == &keyword => Ok(()),
+            _ => Err(PdfError::KeywordExpected(keyword)),
+        }
+    }
+
+    pub fn need_u32(&mut self, value: u32) -> Result<()> {
+        match self.next()? {
+            Some(PdfObject::Number(PdfNumber::Integer(i))) if i == value as i64 => Ok(()),
+            _ => Err(PdfError::InvalidReferenceTarget),
+        }
+    }
+
+    pub fn need_dictionary(&mut self) -> Result<Dictionary> {
+        match self.next()? {
+            Some(PdfObject::Dictionary(d)) => Ok(d),
+            _ => Err(PdfError::InvalidPdf("dictionary expected")),
         }
     }
 
