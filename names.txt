@@ -1,0 +1,67 @@
+#=================================
+# Type values
+#=================================
+Catalog
+
+#=================================
+# Trailer dictionary
+#=================================
+Size
+Prev
+Root
+Encrypt
+Info
+ID
+
+#=================================
+# Catalog dictionary
+#=================================
+Type
+Version
+Extensions
+Pages
+PageLabels
+Names
+Dests
+ViewerPreferences
+PageLayout
+PageMode
+Outlines
+Threads
+OpenAction
+AA
+URI
+AcroForm
+Metadata
+StructTreeRoot
+MarkInfo
+Lang
+SpiderInfo
+OutputIntents
+PieceInfo
+OCProperties
+Perms
+Legal
+Requirements
+Collection
+NeedsRendering
+
+#=================================
+# PageLayout values
+#=================================
+SinglePage
+OneColumn
+TwoColumnLeft
+TwoColumnRight
+TwoPagesLeft
+TwoPagesRight
+
+#=================================
+# PageMode values
+#=================================
+UseNone
+UseOutLines
+UseThumbs
+FullScreen
+UseOC
+UseAttachmentss
