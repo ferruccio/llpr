@@ -23,6 +23,7 @@ pub enum PdfToken {
     Integer(i64),
     Real(f64),
     Name(PdfName),
+    Symbol(String), // a Symbol is an unrecognized Name
     Str(PdfString),
     BeginArray,
     EndArray,
@@ -90,7 +91,7 @@ where
         match self.getch()? {
             ch @ 'A'...'Z' | ch @ 'a'...'z' => self.keyword(ch),
             ch @ '+' | ch @ '-' | ch @ '.' | ch @ '0'...'9' => self.number(ch),
-            '/' => self.name(),
+            '/' => self.name_or_symbol(),
             '[' => Ok(PdfToken::BeginArray),
             ']' => Ok(PdfToken::EndArray),
             '(' => self.string(),
@@ -147,7 +148,7 @@ where
         }
     }
 
-    fn name(&mut self) -> Result<PdfToken> {
+    fn name_or_symbol(&mut self) -> Result<PdfToken> {
         let mut name = "".to_owned();
         loop {
             match self.getch()? {
@@ -156,7 +157,7 @@ where
                     self.backup();
                     return match pdf_name(&name) {
                         Some(name) => Ok(PdfToken::Name(name)),
-                        None => Ok(PdfToken::Name(PdfName::Unknown)),
+                        None => Ok(PdfToken::Symbol(name)),
                     };
                 }
             }
@@ -305,13 +306,20 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut tr = TokenReader::new(tokens("/Root /Size /WhoKnows "));
+        let mut tr = TokenReader::new(tokens("/Root /Size "));
         let tok = tr.next().unwrap();
         assert_eq!(tok, PdfToken::Name(PdfName::Root));
         let tok = tr.next().unwrap();
         assert_eq!(tok, PdfToken::Name(PdfName::Size));
+    }
+
+    #[test]
+    fn symbols() {
+        let mut tr = TokenReader::new(tokens("/Who /What "));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Name(PdfName::Unknown));
+        assert_eq!(tok, PdfToken::Symbol("Who".to_owned()));
+        let tok = tr.next().unwrap();
+        assert_eq!(tok, PdfToken::Symbol("What".to_owned()));
     }
 
     #[test]

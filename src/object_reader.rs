@@ -34,6 +34,7 @@ pub enum PdfObject {
     Number(PdfNumber),
     String(PdfString),
     Name(PdfName),
+    Symbol(String), // a Symbol is an unrecognized Name
     Array(Array),
     Dictionary(Dictionary),
     Stream(Stream),
@@ -83,6 +84,7 @@ where
             PdfToken::Integer(i) => Ok(Some(PdfObject::Number(PdfNumber::Integer(i)))),
             PdfToken::Real(r) => Ok(Some(PdfObject::Number(PdfNumber::Real(r)))),
             PdfToken::Name(name) => Ok(Some(PdfObject::Name(name))),
+            PdfToken::Symbol(symbol) => Ok(Some(PdfObject::Symbol(symbol))),
             PdfToken::Str(s) => Ok(Some(PdfObject::String(s))),
             PdfToken::BeginArray => self.array(),
             PdfToken::BeginDictionary => self.dictionary(),
@@ -252,6 +254,15 @@ mod tests {
     }
 
     #[test]
+    fn symbols() {
+        let mut ps = ObjectReader::without_validation(tokens("/Who /What "));
+        let n = ps.next_raw();
+        assert_eq!(n, PdfObject::Symbol("Who".to_owned()));
+        let n = ps.next_raw();
+        assert_eq!(n, PdfObject::Symbol("What".to_owned()));
+    }
+
+    #[test]
     fn array() {
         let mut ps = ObjectReader::without_validation(tokens("[0 null [(string)] 1.0] "));
         let n = ps.next_raw();
@@ -272,29 +283,27 @@ mod tests {
     fn dictionary() {
         let mut ps1 = ObjectReader::without_validation(tokens(
             r##"<<
-                /Root (this is a test)
+                /Root 10 0 R
                 /Size 35
-                /FontDescriptor [(xyzzy) (plover)]
-                /Ref 10 0 R
+                /Info [(xyzzy) (plover)]
                 /ID <<
                     /Type (some type)
-                    /Length 32
-                    /FontFile 11 2 R
+                    /Prev 32
+                    /Metadata 11 2 R
                 >>
             >> "##,
         ));
         let n1 = ps1.next_raw();
         let mut ps2 = ObjectReader::without_validation(tokens(
             r##"<<
-                /Root    (this is a test)
+                /Root    10  0   R
                 /Size   35
-                /FontDescriptor [(xyzzy)      (plover)]
-                /Ref 10   0    R
+                /Info [(xyzzy)      (plover)]
                 /ID <<
                     /Type  (some type)
 
-                    /Length     32
-                    /FontFile 11 2 R
+                    /Prev     32
+                    /Metadata 11 2 R
                 >>
             >> "##,
         ));
