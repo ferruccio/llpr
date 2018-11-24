@@ -23,7 +23,7 @@ pub enum PdfToken {
     Integer(i64),
     Real(f64),
     Name(PdfName),
-    Symbol(String), // a Symbol is an unrecognized Name
+    Symbol(PdfString), // a Symbol is an unrecognized Name
     Str(PdfString),
     BeginArray,
     EndArray,
@@ -152,14 +152,14 @@ where
         let mut name = "".to_owned();
         loop {
             match self.getch()? {
-                ch @ 'A'...'Z' | ch @ 'a'...'z' => name.push(ch),
-                _ => {
+                ' ' | '\t' | '\n' | '\r' | '\x0c' => {
                     self.backup();
                     return match pdf_name(&name) {
                         Some(name) => Ok(PdfToken::Name(name)),
-                        None => Ok(PdfToken::Symbol(name)),
+                        None => Ok(PdfToken::Symbol(name.as_bytes().to_vec())),
                     };
                 }
+                ch @ _ => name.push(ch),
             }
         }
     }
@@ -317,9 +317,9 @@ mod tests {
     fn symbols() {
         let mut tr = TokenReader::new(tokens("/Who /What "));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Symbol("Who".to_owned()));
+        assert_eq!(tok, PdfToken::Symbol("Who".as_bytes().to_vec()));
         let tok = tr.next().unwrap();
-        assert_eq!(tok, PdfToken::Symbol("What".to_owned()));
+        assert_eq!(tok, PdfToken::Symbol("What".as_bytes().to_vec()));
     }
 
     #[test]

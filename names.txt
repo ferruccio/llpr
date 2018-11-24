@@ -2,6 +2,8 @@
 # Type values
 #=================================
 Catalog
+Pages
+Page
 
 #=================================
 # Trailer dictionary
@@ -65,3 +67,45 @@ UseThumbs
 FullScreen
 UseOC
 UseAttachmentss
+
+#=================================
+# Pages values
+#=================================
+Type
+Parent
+Kids
+Count
+
+#=================================
+# Page values
+#=================================
+Type
+Parent
+LastModified
+Resources
+MediaBox
+CropBox
+BleedBox
+TrimBox
+ArtBox
+BoxColorInfo
+Contents
+Rotate
+Group
+Thumb
+B
+Dur
+Trans
+Annots
+AA
+Metadata
+PieceInfo
+StructParents
+ID
+PZ
+SeparationInfo
+Tabs
+TemplateInstantiated
+PresSteps
+UserUnit
+VP

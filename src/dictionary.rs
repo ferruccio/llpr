@@ -1,16 +1,24 @@
 use errors::*;
 use object_reader::{Array, PdfNumber, PdfObject, Reference};
 use std::collections::HashMap;
-use token_reader::PdfName;
+use token_reader::{PdfName, PdfString};
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
 pub type Dictionary = Box<HashMap<PdfName, PdfObject>>;
 
+pub trait GetFrom {
+    fn get_name(&self, name: PdfName) -> Option<PdfName>;
+}
+
 pub trait ExtractOption {
+    fn want_i32(&mut self, name: PdfName) -> Option<i32>;
     fn want_u32(&mut self, name: PdfName) -> Option<u32>;
     fn want_u64(&mut self, name: PdfName) -> Option<u64>;
+    fn want_string(&mut self, name: PdfName) -> Option<PdfString>;
     fn want_name(&mut self, name: PdfName) -> Option<PdfName>;
+    fn want_symbol(&mut self, name: PdfName) -> Option<PdfString>;
+    fn want_number(&mut self, name: PdfName) -> Option<PdfNumber>;
     fn want_reference(&mut self, name: PdfName) -> Option<Reference>;
     fn want_dictionary(&mut self, name: PdfName) -> Option<Dictionary>;
     fn want_array(&mut self, name: PdfName) -> Option<Array>;
@@ -21,9 +29,26 @@ pub trait ExtractRequired {
     fn need_reference(&mut self, name: PdfName, err: PdfError) -> Result<Reference>;
     fn need_dictionary(&mut self, name: PdfName, err: PdfError) -> Result<Dictionary>;
     fn need_type(&mut self, r#type: PdfName, err: PdfError) -> Result<PdfName>;
+    fn need_array(&mut self, name: PdfName, err: PdfError) -> Result<Array>;
+}
+
+impl GetFrom for Dictionary {
+    fn get_name(&self, name: PdfName) -> Option<PdfName> {
+        match self.get(&name) {
+            Some(PdfObject::Name(name)) => Some(name.clone()),
+            _ => None,
+        }
+    }
 }
 
 impl ExtractOption for Dictionary {
+    fn want_i32(&mut self, name: PdfName) -> Option<i32> {
+        match self.remove(&name) {
+            Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(i as i32),
+            _ => None,
+        }
+    }
+
     fn want_u32(&mut self, name: PdfName) -> Option<u32> {
         match self.remove(&name) {
             Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(i as u32),
@@ -38,9 +63,30 @@ impl ExtractOption for Dictionary {
         }
     }
 
+    fn want_string(&mut self, name: PdfName) -> Option<PdfString> {
+        match self.remove(&name) {
+            Some(PdfObject::String(s)) => Some(s),
+            _ => None,
+        }
+    }
+
     fn want_name(&mut self, name: PdfName) -> Option<PdfName> {
         match self.remove(&name) {
             Some(PdfObject::Name(n)) => Some(n),
+            _ => None,
+        }
+    }
+
+    fn want_symbol(&mut self, name: PdfName) -> Option<PdfString> {
+        match self.remove(&name) {
+            Some(PdfObject::Symbol(n)) => Some(n),
+            _ => None,
+        }
+    }
+
+    fn want_number(&mut self, name: PdfName) -> Option<PdfNumber> {
+        match self.remove(&name) {
+            Some(PdfObject::Number(n)) => Some(n),
             _ => None,
         }
     }
@@ -93,6 +139,13 @@ impl ExtractRequired for Dictionary {
         match self.remove(&PdfName::Type) {
             Some(PdfObject::Name(ref name)) if name == &r#type => Ok(name.clone()),
             _ => Err(err),
+        }
+    }
+
+    fn need_array(&mut self, name: PdfName, err: PdfError) -> Result<Array> {
+        match self.want_array(name) {
+            Some(a) => Ok(a),
+            None => Err(err),
         }
     }
 }

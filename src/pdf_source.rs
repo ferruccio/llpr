@@ -1,9 +1,10 @@
 use catalog::Catalog;
-use dictionary::Dictionary;
+use dictionary::{Dictionary, GetFrom};
 use errors::*;
 use object_reader::{ObjectReader, PdfNumber, PdfObject, Reference};
+use pages::{Page, Pages};
 use std::io::{Read, Seek, SeekFrom};
-use token_reader::{PdfKeyword, TokenReader};
+use token_reader::{PdfKeyword, PdfName, TokenReader};
 use trailer::Trailer;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
@@ -24,6 +25,7 @@ where
     trailer: Trailer,
     xref: Vec<XRefEntry>,
     catalog: Catalog,
+    pages: Vec<Page>,
 }
 
 impl<S> PdfSource<S>
@@ -35,23 +37,38 @@ where
         S: Read + Seek,
     {
         validate_pdf(&mut source)?;
+        // process PDF trailer
         let (position, buffer) = read_tail(&mut source)?;
         let trailer_position = find_trailer(position, &buffer)?;
         let mut reader = ObjectReader::new(TokenReader::new(source));
         reader.seek(SeekFrom::Start(trailer_position))?;
         let (trailer_dict, startxref) = read_trailer(&mut reader)?;
         let trailer = Trailer::new(trailer_dict)?;
+        // load xref table
         reader.seek(SeekFrom::Start(startxref))?;
         let xref = read_xref(&mut reader, trailer.size)?;
+        // load document catalog
         reader.seek(SeekFrom::Start(object_position(&xref, trailer.root.id)?))?;
-        let catalog_dict = read_object(&mut reader, trailer.root)?;
+        let catalog_dict = read_dictionary(&mut reader, trailer.root)?;
         let catalog = Catalog::new(catalog_dict)?;
+        // load page tree root
+        reader.seek(SeekFrom::Start(object_position(&xref, catalog.pages.id)?))?;
+        let pages_dict = read_dictionary(&mut reader, catalog.pages)?;
+        let page_root = Pages::new(pages_dict)?;
+        // load pages
+        let pages = read_pages(&mut reader, &xref, &page_root)?;
+        // we're ready to go
         Ok(PdfSource {
             reader: reader,
             trailer: trailer,
             xref: xref,
             catalog: catalog,
+            pages: pages,
         })
+    }
+
+    pub fn page_count(&self) -> u32 {
+        self.pages.len() as u32
     }
 }
 
@@ -169,6 +186,47 @@ where
     }
 }
 
+fn read_pages<S>(
+    reader: &mut ObjectReader<S>,
+    xref: &Vec<XRefEntry>,
+    page_root: &Pages,
+) -> Result<Vec<Page>>
+where
+    S: Read + Seek,
+{
+    let mut pages = vec![];
+    for kid in page_root.kids.iter() {
+        match kid {
+            PdfObject::Reference(r) => {
+                seek_reference(reader, xref, r.clone())?;
+                let dict = read_dictionary(reader, r.clone())?;
+                match dict.get_name(PdfName::Type) {
+                    Some(ref name) if *name == PdfName::Pages => {
+                        pages.append(&mut read_pages(reader, xref, &Pages::new(dict)?)?);
+                    }
+                    Some(ref name) if *name == PdfName::Page => {
+                        pages.push(Page::new(dict)?);
+                    }
+                    _ => return Err(PdfError::InvalidPdf("invalid page tree entry")),
+                }
+            }
+            _ => return Err(PdfError::InvalidPdf("invalid Kids entry")),
+        }
+    }
+    Ok(pages)
+}
+
+fn seek_reference<S>(
+    reader: &mut ObjectReader<S>,
+    xref: &Vec<XRefEntry>,
+    reference: Reference,
+) -> Result<u64>
+where
+    S: Read + Seek,
+{
+    reader.seek(SeekFrom::Start(object_position(xref, reference.id)?))
+}
+
 fn object_position(xref: &Vec<XRefEntry>, id: u32) -> Result<u64> {
     let id = id as usize;
     if id >= xref.len() || xref[id].gen == FREE_GEN {
@@ -178,14 +236,45 @@ fn object_position(xref: &Vec<XRefEntry>, id: u32) -> Result<u64> {
     }
 }
 
-fn read_object<S>(reader: &mut ObjectReader<S>, reference: Reference) -> Result<Dictionary>
+fn read_dictionary<S>(reader: &mut ObjectReader<S>, reference: Reference) -> Result<Dictionary>
 where
     S: Read + Seek,
 {
     reader.need_u32(reference.id)?;
     reader.need_u32(reference.gen as u32)?;
     reader.need_keyword(PdfKeyword::obj)?;
-    reader.need_dictionary()
+    let dictionary = reader.need_dictionary()?;
+    reader.need_keyword(PdfKeyword::endobj)?;
+    Ok(dictionary)
+}
+
+fn read_object<S>(reader: &mut ObjectReader<S>, reference: Reference) -> Result<PdfObject>
+where
+    S: Read + Seek,
+{
+    reader.need_u32(reference.id)?;
+    reader.need_u32(reference.gen as u32)?;
+    reader.need_keyword(PdfKeyword::obj)?;
+    let object = reader.need_object()?;
+    reader.need_keyword(PdfKeyword::endobj)?;
+    Ok(object)
+}
+
+fn get_object<S>(
+    reader: &mut ObjectReader<S>,
+    xref: &Vec<XRefEntry>,
+    object: PdfObject,
+) -> Result<PdfObject>
+where
+    S: Read + Seek,
+{
+    match object {
+        PdfObject::Reference(r) => {
+            reader.seek(SeekFrom::Start(object_position(xref, r.id)?))?;
+            read_object(reader, r)
+        }
+        obj @ _ => Ok(obj),
+    }
 }
 
 #[cfg(test)]
@@ -259,6 +348,7 @@ mod tests {
     fn minimal_pdf_xref() {
         let pdf = PdfSource::new(open_test_file("minimal.pdf")).unwrap();
         assert_eq!(pdf.xref.len(), 5);
+        assert_eq!(pdf.page_count(), 1);
         assert_eq!(
             pdf.xref[0],
             XRefEntry {
@@ -300,5 +390,6 @@ mod tests {
     fn tracemonkey_pdf_xref() {
         let pdf = PdfSource::new(open_test_file("tracemonkey.pdf")).unwrap();
         assert_eq!(pdf.xref.len(), 997);
+        assert_eq!(pdf.page_count(), 14);
     }
 }

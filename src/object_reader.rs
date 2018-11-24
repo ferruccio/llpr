@@ -34,7 +34,7 @@ pub enum PdfObject {
     Number(PdfNumber),
     String(PdfString),
     Name(PdfName),
-    Symbol(String), // a Symbol is an unrecognized Name
+    Symbol(PdfString), // a Symbol is an unrecognized Name
     Array(Array),
     Dictionary(Dictionary),
     Stream(Stream),
@@ -113,6 +113,13 @@ where
         }
     }
 
+    pub fn need_object(&mut self) -> Result<PdfObject> {
+        match self.next()? {
+            Some(obj) => Ok(obj),
+            None => Err(PdfError::InvalidPdf("object expected")),
+        }
+    }
+
     fn array(&mut self) -> Result<Option<PdfObject>> {
         let mut source = Box::new(vec![]);
         loop {
@@ -142,6 +149,7 @@ where
                             PdfObject::Name(name) => {
                                 dict.insert(name, value);
                             }
+                            PdfObject::Symbol(_) => {}
                             _ => return Err(PdfError::InvalidPdf("malformed dictionary")),
                         }
                     }
@@ -257,9 +265,9 @@ mod tests {
     fn symbols() {
         let mut ps = ObjectReader::without_validation(tokens("/Who /What "));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Symbol("Who".to_owned()));
+        assert_eq!(n, PdfObject::Symbol("Who".as_bytes().to_vec()));
         let n = ps.next_raw();
-        assert_eq!(n, PdfObject::Symbol("What".to_owned()));
+        assert_eq!(n, PdfObject::Symbol("What".as_bytes().to_vec()));
     }
 
     #[test]
@@ -275,6 +283,20 @@ mod tests {
                     115, 116, 114, 105, 110, 103
                 ])])),
                 PdfObject::Number(PdfNumber::Real(1.0))
+            ]))
+        );
+    }
+
+    #[test]
+    fn array_of_references() {
+        let mut ps = ObjectReader::without_validation(tokens("[0 1 R 2 3 R 4 5 R] "));
+        let a = ps.next_raw();
+        assert_eq!(
+            a,
+            PdfObject::Array(Box::new(vec![
+                PdfObject::Reference(Reference { id: 0, gen: 1 }),
+                PdfObject::Reference(Reference { id: 2, gen: 3 }),
+                PdfObject::Reference(Reference { id: 4, gen: 5 })
             ]))
         );
     }

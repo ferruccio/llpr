@@ -24,6 +24,12 @@ quick_error! {
         InvalidCatalog {
             description("document catalog missing required item(s)")
         }
+        InvalidPages {
+            description("pages entry missing required item(s)")
+        }
+        InvalidPage {
+            description("page entry missing required item(s)")
+        }
         EndOfFile {
             description("unexpected end of file")
         }
