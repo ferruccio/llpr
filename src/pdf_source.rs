@@ -78,7 +78,7 @@ where
     let position = if filesize < BUFFER_SIZE {
         source.seek(SeekFrom::Start(0))?
     } else {
-        source.seek(SeekFrom::End(BUFFER_SIZE as i64))?
+        source.seek(SeekFrom::End(-(BUFFER_SIZE as i64)))?
     };
     let mut buffer = vec![];
     let _ = source.read_to_end(&mut buffer)?;
@@ -294,5 +294,11 @@ mod tests {
                 position: 457
             }
         );
+    }
+
+    #[test]
+    fn tracemonkey_pdf_xref() {
+        let pdf = PdfSource::new(open_test_file("tracemonkey.pdf")).unwrap();
+        assert_eq!(pdf.xref.len(), 997);
     }
 }
