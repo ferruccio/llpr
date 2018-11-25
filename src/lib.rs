@@ -6,8 +6,8 @@ mod dictionary;
 mod errors;
 mod object_reader;
 mod pages;
-mod pdf_source;
+mod pdf_document;
 mod token_reader;
 mod trailer;
 
-pub use pdf_source::PdfSource;
+pub use pdf_document::PdfDocument;

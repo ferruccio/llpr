@@ -15,12 +15,6 @@ pub struct Reference {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Stream {
-    header: Dictionary,
-    position: u64,
-}
-
-#[derive(Clone, PartialEq, Debug)]
 pub enum PdfNumber {
     Integer(i64),
     Real(f64),
@@ -37,7 +31,6 @@ pub enum PdfObject {
     Symbol(PdfString), // a Symbol is an unrecognized Name
     Array(Array),
     Dictionary(Dictionary),
-    Stream(Stream),
     Reference(Reference),
 }
 
@@ -110,13 +103,6 @@ where
         match self.next()? {
             Some(PdfObject::Dictionary(d)) => Ok(d),
             _ => Err(PdfError::InvalidPdf("dictionary expected")),
-        }
-    }
-
-    pub fn need_object(&mut self) -> Result<PdfObject> {
-        match self.next()? {
-            Some(obj) => Ok(obj),
-            None => Err(PdfError::InvalidPdf("object expected")),
         }
     }
 
