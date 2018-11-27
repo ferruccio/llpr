@@ -1,7 +1,7 @@
 use dictionary::{Dictionary, ExtractOption, ExtractRequired};
 use errors::*;
-use object_reader::{Array, PdfNumber, PdfObject, Reference};
-use token_reader::{PdfName, PdfString};
+use next_object::{Array, PdfNumber, PdfObject, Reference};
+use next_token::{PdfName, PdfString};
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 

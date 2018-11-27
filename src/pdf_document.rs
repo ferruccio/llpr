@@ -1,10 +1,13 @@
 use catalog::Catalog;
 use dictionary::{Dictionary, GetFrom};
 use errors::*;
-use object_reader::{ObjectReader, PdfNumber, PdfObject, Reference};
+use next_object::{
+    need_dictionary, need_keyword, need_u32, next_object, PdfNumber, PdfObject, Reference,
+};
+use next_token::{PdfKeyword, PdfName};
 use pages::{Page, Pages};
-use std::io::{Read, Seek, SeekFrom};
-use token_reader::{PdfKeyword, PdfName, TokenReader};
+use pdf_source::Source;
+use std::io::{Read, SeekFrom};
 use trailer::Trailer;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
@@ -17,35 +20,26 @@ pub struct XRefEntry {
     position: u64,
 }
 
-pub struct PdfDocument<S>
-where
-    S: Read + Seek,
-{
-    reader: ObjectReader<S>,
+pub struct PdfDocument {
+    source: Box<Source>,
     xref: Vec<XRefEntry>,
     pages: Vec<Page>,
 }
 
-impl<S> PdfDocument<S>
-where
-    S: Read + Seek,
-{
-    pub fn new(mut source: S) -> Result<PdfDocument<S>>
-    where
-        S: Read + Seek,
-    {
+impl PdfDocument {
+    pub fn new(mut source: Box<Source>) -> Result<PdfDocument> {
         PdfDocument::validate_pdf(&mut source)?;
         let (position, buffer) = PdfDocument::read_tail(&mut source)?;
         let trailer_position = find_trailer(position, &buffer)?;
         let mut document = PdfDocument {
-            reader: ObjectReader::new(TokenReader::new(source)),
+            source: source,
             xref: vec![],
             pages: vec![],
         };
-        document.reader.seek(SeekFrom::Start(trailer_position))?;
-        let (trailer_dict, startxref) = PdfDocument::read_trailer(&mut document.reader)?;
+        document.source.seek(SeekFrom::Start(trailer_position))?;
+        let (trailer_dict, startxref) = PdfDocument::read_trailer(&mut document.source)?;
         let trailer = Trailer::new(trailer_dict)?;
-        document.reader.seek(SeekFrom::Start(startxref))?;
+        document.source.seek(SeekFrom::Start(startxref))?;
         document.read_xref(trailer.size)?;
         document.seek_reference(trailer.root)?;
         let catalog = Catalog::new(document.read_dictionary(trailer.root)?)?;
@@ -60,11 +54,8 @@ where
     }
 }
 
-impl<S> PdfDocument<S>
-where
-    S: Read + Seek,
-{
-    fn validate_pdf(source: &mut S) -> Result<()> {
+impl PdfDocument {
+    fn validate_pdf(source: &mut Box<Source>) -> Result<()> {
         source.seek(SeekFrom::Start(0))?;
         let expected_header = "%PDF-1.";
         let mut buffer = [0; 7];
@@ -75,7 +66,7 @@ where
         Ok(())
     }
 
-    fn read_tail(source: &mut S) -> Result<(u64, Vec<u8>)> {
+    fn read_tail(source: &mut Box<Source>) -> Result<(u64, Vec<u8>)> {
         const BUFFER_SIZE: usize = 8 * 1024;
         let filesize = source.seek(SeekFrom::End(0))? as usize;
         let position = if filesize < BUFFER_SIZE {
@@ -88,10 +79,10 @@ where
         Ok((position, buffer))
     }
 
-    fn read_trailer(reader: &mut ObjectReader<S>) -> Result<(Dictionary, u64)> {
-        if let Some(PdfObject::Dictionary(trailer_dict)) = reader.next()? {
-            reader.need_keyword(PdfKeyword::startxref)?;
-            if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = reader.next()? {
+    fn read_trailer(source: &mut Box<Source>) -> Result<(Dictionary, u64)> {
+        if let Some(PdfObject::Dictionary(trailer_dict)) = next_object(source)? {
+            need_keyword(source, PdfKeyword::startxref)?;
+            if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = next_object(source)? {
                 return Ok((trailer_dict, addr as u64));
             }
         }
@@ -106,10 +97,10 @@ where
                 position: 0,
             },
         );
-        self.reader.need_keyword(PdfKeyword::xref)?;
+        need_keyword(&mut self.source, PdfKeyword::xref)?;
         loop {
-            let first = self.reader.next()?;
-            let count = self.reader.next()?;
+            let first = next_object(&mut self.source)?;
+            let count = next_object(&mut self.source)?;
             let (first, count) = match (first, count) {
                 (
                     Some(PdfObject::Number(PdfNumber::Integer(f))),
@@ -127,9 +118,9 @@ where
     }
 
     fn read_xref_entry(&mut self) -> Result<XRefEntry> {
-        let position = self.reader.next()?;
-        let gen = self.reader.next()?;
-        let flag = self.reader.next()?;
+        let position = next_object(&mut self.source)?;
+        let gen = next_object(&mut self.source)?;
+        let flag = next_object(&mut self.source)?;
         match (position, gen, flag) {
             (
                 Some(PdfObject::Number(PdfNumber::Integer(p))),
@@ -176,11 +167,11 @@ where
     }
 
     fn read_dictionary(&mut self, reference: Reference) -> Result<Dictionary> {
-        self.reader.need_u32(reference.id)?;
-        self.reader.need_u32(reference.gen as u32)?;
-        self.reader.need_keyword(PdfKeyword::obj)?;
-        let dictionary = self.reader.need_dictionary()?;
-        self.reader.need_keyword(PdfKeyword::endobj)?;
+        need_u32(&mut self.source, reference.id)?;
+        need_u32(&mut self.source, reference.gen as u32)?;
+        need_keyword(&mut self.source, PdfKeyword::obj)?;
+        let dictionary = need_dictionary(&mut self.source)?;
+        need_keyword(&mut self.source, PdfKeyword::endobj)?;
         Ok(dictionary)
     }
 
@@ -189,7 +180,7 @@ where
         if id >= self.xref.len() || self.xref[id].gen == FREE_GEN {
             Err(PdfError::InvalidReference)
         } else {
-            Ok(self.reader.seek(SeekFrom::Start(self.xref[id].position))?)
+            Ok(self.source.seek(SeekFrom::Start(self.xref[id].position))?)
         }
     }
 }
@@ -207,17 +198,14 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pdf_source::tests::StrSource;
+    use pdf_source::PdfSource;
     use std::fs::File;
-    use std::io::{Cursor, Read, Seek};
 
-    fn open_test_file(name: &str) -> File {
+    fn open_test_file(name: &str) -> Box<PdfSource<File>> {
         let src = env!("CARGO_MANIFEST_DIR");
         let fullname = format!("{}/testing/{}", src, name);
-        File::open(&fullname).unwrap()
-    }
-
-    fn pdf_str(source: &'static str) -> impl Read + Seek {
-        Cursor::new(source.as_bytes())
+        Box::new(PdfSource::new(File::open(&fullname).unwrap()))
     }
 
     #[test]
@@ -228,7 +216,7 @@ mod tests {
 
     #[test]
     fn bad_header() {
-        let pdf = pdf_str("%PDx-1.3\n% bad pdf header\n");
+        let pdf = Box::new(StrSource::new("%PDx-1.3\n% bad pdf header\n"));
         assert!(PdfDocument::new(pdf).is_err());
     }
 
