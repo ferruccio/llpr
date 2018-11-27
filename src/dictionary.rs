@@ -1,7 +1,7 @@
 use errors::*;
-use object_reader::{Array, PdfNumber, PdfObject, Reference};
+use next_object::{Array, PdfNumber, PdfObject, Reference};
+use next_token::{PdfName, PdfString};
 use std::collections::HashMap;
-use token_reader::{PdfName, PdfString};
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 

@@ -1,5 +1,5 @@
+use next_token::PdfKeyword;
 use quick_error::quick_error;
-use token_reader::PdfKeyword;
 
 quick_error! {
     #[derive(Debug)]
