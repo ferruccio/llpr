@@ -3,11 +3,11 @@ use pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
-pub trait GetFrom {
+pub trait Access {
+    // lookup methods
     fn get_name(&self, name: PdfName) -> Option<PdfName>;
-}
 
-pub trait ExtractOption {
+    // optional extraction methods
     fn want_i32(&mut self, name: PdfName) -> Option<i32>;
     fn want_u32(&mut self, name: PdfName) -> Option<u32>;
     fn want_u64(&mut self, name: PdfName) -> Option<u64>;
@@ -18,9 +18,8 @@ pub trait ExtractOption {
     fn want_reference(&mut self, name: PdfName) -> Option<Reference>;
     fn want_dictionary(&mut self, name: PdfName) -> Option<Dictionary>;
     fn want_array(&mut self, name: PdfName) -> Option<Array>;
-}
 
-pub trait ExtractRequired {
+    // required extraction methods
     fn need_u32(&mut self, name: PdfName, err: PdfError) -> Result<u32>;
     fn need_reference(&mut self, name: PdfName, err: PdfError) -> Result<Reference>;
     fn need_dictionary(&mut self, name: PdfName, err: PdfError) -> Result<Dictionary>;
@@ -28,16 +27,14 @@ pub trait ExtractRequired {
     fn need_array(&mut self, name: PdfName, err: PdfError) -> Result<Array>;
 }
 
-impl GetFrom for Dictionary {
+impl Access for Dictionary {
     fn get_name(&self, name: PdfName) -> Option<PdfName> {
         match self.get(&name) {
             Some(PdfObject::Name(name)) => Some(name.clone()),
             _ => None,
         }
     }
-}
 
-impl ExtractOption for Dictionary {
     fn want_i32(&mut self, name: PdfName) -> Option<i32> {
         match self.remove(&name) {
             Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(i as i32),
@@ -107,9 +104,7 @@ impl ExtractOption for Dictionary {
             _ => None,
         }
     }
-}
 
-impl ExtractRequired for Dictionary {
     fn need_u32(&mut self, name: PdfName, err: PdfError) -> Result<u32> {
         match self.want_u32(name) {
             Some(i) => Ok(i),

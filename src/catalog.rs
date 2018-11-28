@@ -1,4 +1,4 @@
-use dictionary::{ExtractOption, ExtractRequired};
+use dictionary::Access;
 use errors::*;
 use pdf_types::*;
 

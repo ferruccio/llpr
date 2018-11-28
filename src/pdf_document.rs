@@ -1,5 +1,5 @@
 use catalog::Catalog;
-use dictionary::GetFrom;
+use dictionary::Access;
 use errors::*;
 use next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use pages::{Page, Pages};
