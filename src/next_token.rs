@@ -97,6 +97,15 @@ fn number(source: &mut Box<Source>, first: char) -> Result<PdfToken> {
     }
 }
 
+fn nybble(ch: char) -> Result<u8> {
+    match ch {
+        ch @ '0'...'9' => Ok(ch as u8 - '0' as u8),
+        ch @ 'A'...'F' => Ok(10 + (ch as u8 - 'A' as u8)),
+        ch @ 'a'...'f' => Ok(10 + (ch as u8 - 'a' as u8)),
+        _ => Err(PdfError::InvalidPdf("invalid hex character")),
+    }
+}
+
 fn name_or_symbol(source: &mut Box<Source>) -> Result<PdfToken> {
     let mut name = "".to_owned();
     loop {
@@ -107,6 +116,11 @@ fn name_or_symbol(source: &mut Box<Source>) -> Result<PdfToken> {
                     Some(name) => Ok(PdfToken::Name(name)),
                     None => Ok(PdfToken::Symbol(name.as_bytes().to_vec())),
                 };
+            }
+            '#' => {
+                let hi = nybble(source.getch()?)?;
+                let lo = nybble(source.getch()?)?;
+                name.push((hi << 4 | lo) as char);
             }
             ch @ _ => name.push(ch),
         }
@@ -173,25 +187,16 @@ fn hex_string(source: &mut Box<Source>) -> Result<PdfToken> {
     loop {
         match source.getch()? {
             ' ' | '\t' | '\n' | '\r' | '\x0c' => {}
-            ch @ '0'...'9' => {
-                hex = ch as u8 - '0' as u8;
-                first = !first;
-            }
-            ch @ 'A'...'F' => {
-                hex = 10 + (ch as u8 - 'A' as u8);
-                first = !first;
-            }
-            ch @ 'a'...'f' => {
-                hex = 10 + (ch as u8 - 'a' as u8);
-                first = !first;
-            }
             '>' => {
                 if first {
                     string.push(hex << 4);
                 }
                 return Ok(PdfToken::Str(string));
             }
-            _ => return Err(PdfError::InvalidPdf("unexpected character in hex string")),
+            ch @ _ => {
+                hex = nybble(ch)?;
+                first = !first;
+            }
         }
         if first {
             value = hex;
@@ -263,11 +268,19 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(b"/Who /What "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(
+            b"/Who /What /#57here /W#68#65#6e /And#20How ",
+        ));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Symbol("Who".as_bytes().to_vec()));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Symbol("What".as_bytes().to_vec()));
+        let tok = next(&mut source);
+        assert_eq!(tok, PdfToken::Symbol("Where".as_bytes().to_vec()));
+        let tok = next(&mut source);
+        assert_eq!(tok, PdfToken::Symbol("When".as_bytes().to_vec()));
+        let tok = next(&mut source);
+        assert_eq!(tok, PdfToken::Symbol("And How".as_bytes().to_vec()));
     }
 
     #[test]
