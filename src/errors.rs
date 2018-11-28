@@ -1,4 +1,4 @@
-use next_token::PdfKeyword;
+use pdf_types::*;
 use quick_error::quick_error;
 
 quick_error! {

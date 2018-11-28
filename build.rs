@@ -42,7 +42,7 @@ fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) 
 
     write!(
         &mut file,
-        "static {}: phf::Map<&'static str, {}> = ",
+        "pub static {}: phf::Map<&'static str, {}> = ",
         target, typename
     ).unwrap();
     let mut builder = phf_codegen::Map::new();

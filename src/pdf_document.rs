@@ -1,12 +1,10 @@
 use catalog::Catalog;
-use dictionary::{Dictionary, GetFrom};
+use dictionary::GetFrom;
 use errors::*;
-use next_object::{
-    need_dictionary, need_keyword, need_u32, next_object, PdfNumber, PdfObject, Reference,
-};
-use next_token::{PdfKeyword, PdfName};
+use next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use pages::{Page, Pages};
 use pdf_source::Source;
+use pdf_types::*;
 use std::io::{Read, SeekFrom};
 use trailer::Trailer;
 

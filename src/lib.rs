@@ -9,6 +9,7 @@ mod next_token;
 mod pages;
 mod pdf_document;
 mod pdf_source;
+mod pdf_types;
 mod trailer;
 
 pub use pdf_document::PdfDocument;

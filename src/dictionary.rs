@@ -1,11 +1,7 @@
 use errors::*;
-use next_object::{Array, PdfNumber, PdfObject, Reference};
-use next_token::{PdfName, PdfString};
-use std::collections::HashMap;
+use pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
-
-pub type Dictionary = Box<HashMap<PdfName, PdfObject>>;
 
 pub trait GetFrom {
     fn get_name(&self, name: PdfName) -> Option<PdfName>;

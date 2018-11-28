@@ -1,44 +1,10 @@
-use dictionary::Dictionary;
 use errors::*;
-use next_token::{next_token, PdfKeyword, PdfName, PdfString, PdfToken};
+use next_token::next_token;
 use pdf_source::Source;
+use pdf_types::*;
 use std::collections::HashMap;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
-
-pub type Array = Box<Vec<PdfObject>>;
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub struct Reference {
-    pub id: u32,
-    pub gen: u16,
-}
-
-impl Reference {
-    fn new(id: u32, gen: u16) -> Reference {
-        Reference { id: id, gen: gen }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum PdfNumber {
-    Integer(i64),
-    Real(f64),
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum PdfObject {
-    Null,
-    Keyword(PdfKeyword),
-    Boolean(bool),
-    Number(PdfNumber),
-    String(PdfString),
-    Name(PdfName),
-    Symbol(PdfString), // a Symbol is an unrecognized Name
-    Array(Array),
-    Dictionary(Dictionary),
-    Reference(Reference),
-}
 
 pub fn next_object(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
     match next_token(source)? {

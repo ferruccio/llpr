@@ -1,34 +1,15 @@
 use errors::*;
 use pdf_source::Source;
+use pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
-
-pub type PdfString = Vec<u8>;
-
-include!(concat!(env!("OUT_DIR"), "/codegen_names.rs"));
 
 fn pdf_name(name: &str) -> Option<PdfName> {
     NAMES.get(name).cloned()
 }
 
-include!(concat!(env!("OUT_DIR"), "/codegen_keywords.rs"));
-
 fn pdf_keyword(keyword: &str) -> Option<PdfKeyword> {
     KEYWORDS.get(keyword).cloned()
-}
-
-#[derive(Debug, PartialEq)]
-pub enum PdfToken {
-    Keyword(PdfKeyword),
-    Integer(i64),
-    Real(f64),
-    Name(PdfName),
-    Symbol(PdfString), // a Symbol is an unrecognized Name
-    Str(PdfString),
-    BeginArray,
-    EndArray,
-    BeginDictionary,
-    EndDictionary,
 }
 
 pub fn next_token(source: &mut Box<Source>) -> Result<PdfToken> {

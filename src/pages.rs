@@ -1,7 +1,6 @@
-use dictionary::{Dictionary, ExtractOption, ExtractRequired};
+use dictionary::{ExtractOption, ExtractRequired};
 use errors::*;
-use next_object::{Array, PdfNumber, PdfObject, Reference};
-use next_token::{PdfName, PdfString};
+use pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
