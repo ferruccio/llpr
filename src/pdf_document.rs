@@ -198,8 +198,7 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::tests::StrSource;
-    use pdf_source::PdfSource;
+    use pdf_source::{ByteSource, PdfSource};
     use std::fs::File;
 
     fn open_test_file(name: &str) -> Box<PdfSource<File>> {
@@ -216,7 +215,7 @@ mod tests {
 
     #[test]
     fn bad_header() {
-        let pdf = Box::new(StrSource::new("%PDx-1.3\n% bad pdf header\n"));
+        let pdf = Box::new(ByteSource::new(b"%PDx-1.3\n% bad pdf header\n"));
         assert!(PdfDocument::new(pdf).is_err());
     }
 

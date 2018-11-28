@@ -139,7 +139,7 @@ fn reference(array: &mut Vec<PdfObject>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::tests::StrSource;
+    use pdf_source::ByteSource;
 
     fn next(source: &mut Box<Source>) -> PdfObject {
         next_object(source).unwrap().unwrap()
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let mut source: Box<Source> = Box::new(StrSource::new(" trailer\n\txref "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b" trailer\n\txref "));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Keyword(PdfKeyword::trailer));
         let n = next(&mut source);
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn value_keywords() {
-        let mut source: Box<Source> = Box::new(StrSource::new("null true false "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"null true false "));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Null);
         let n = next(&mut source);
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn numbers() {
-        let mut source: Box<Source> = Box::new(StrSource::new("0 0.0 1 1.0 -10.34 10000.5 "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"0 0.0 1 1.0 -10.34 10000.5 "));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Number(PdfNumber::Integer(0)));
         let n = next(&mut source);
@@ -184,8 +184,8 @@ mod tests {
 
     #[test]
     fn strings() {
-        let mut source: Box<Source> = Box::new(StrSource::new(
-            "() (string) (Another \t (string)) <> <a1b2> <a1b>",
+        let mut source: Box<Source> = Box::new(ByteSource::new(
+            b"() (string) (Another \t (string)) <> <a1b2> <a1b>",
         ));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::String(vec![]));
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut source: Box<Source> = Box::new(StrSource::new("/Root /Size "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"/Root /Size "));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Name(PdfName::Root));
         let n = next(&mut source);
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let mut source: Box<Source> = Box::new(StrSource::new("/Who /What "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"/Who /What "));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Symbol("Who".as_bytes().to_vec()));
         let n = next(&mut source);
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn array() {
-        let mut source: Box<Source> = Box::new(StrSource::new("[0 null [(string)] 1.0] "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"[0 null [(string)] 1.0] "));
         let n = next(&mut source);
         assert_eq!(
             n,
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn array_of_references() {
-        let mut source: Box<Source> = Box::new(StrSource::new("[0 1 R 2 3 R 4 5 R] "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"[0 1 R 2 3 R 4 5 R] "));
         let a = next(&mut source);
         assert_eq!(
             a,
@@ -257,8 +257,8 @@ mod tests {
 
     #[test]
     fn dictionary() {
-        let mut source1: Box<Source> = Box::new(StrSource::new(
-            r##"<<
+        let mut source1: Box<Source> = Box::new(ByteSource::new(
+            br##"<<
                 /Root 10 0 R
                 /Size 35
                 /Info [(xyzzy) (plover)]
@@ -270,8 +270,8 @@ mod tests {
             >> "##,
         ));
         let n1 = next(&mut source1);
-        let mut source2: Box<Source> = Box::new(StrSource::new(
-            r##"<<
+        let mut source2: Box<Source> = Box::new(ByteSource::new(
+            br##"<<
                 /Root    10  0   R
                 /Size   35
                 /Info [(xyzzy)      (plover)]

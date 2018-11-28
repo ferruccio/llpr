@@ -12,4 +12,4 @@ mod pdf_source;
 mod trailer;
 
 pub use pdf_document::PdfDocument;
-pub use pdf_source::{PdfSource, StreamSource};
+pub use pdf_source::{ByteSource, PdfSource, StreamSource};
