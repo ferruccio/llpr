@@ -99,9 +99,9 @@ fn number(source: &mut Box<Source>, first: char) -> Result<PdfToken> {
 
 fn nybble(ch: char) -> Result<u8> {
     match ch {
-        ch @ '0'...'9' => Ok(ch as u8 - '0' as u8),
-        ch @ 'A'...'F' => Ok(10 + (ch as u8 - 'A' as u8)),
-        ch @ 'a'...'f' => Ok(10 + (ch as u8 - 'a' as u8)),
+        ch @ '0'...'9' => Ok(ch as u8 - b'0'),
+        ch @ 'A'...'F' => Ok(10 + (ch as u8 - b'A')),
+        ch @ 'a'...'f' => Ok(10 + (ch as u8 - b'a')),
         _ => Err(PdfError::InvalidPdf("invalid hex character")),
     }
 }
@@ -133,24 +133,24 @@ fn string(source: &mut Box<Source>) -> Result<PdfToken> {
     loop {
         match source.getch()? {
             '(' => {
-                string.push('(' as u8);
+                string.push(b'(');
                 nesting += 1;
             }
             ')' => {
                 if nesting == 0 {
                     return Ok(PdfToken::Str(string));
                 }
-                string.push(')' as u8);
+                string.push(b')');
                 nesting -= 1;
             }
             '\\' => match source.getch()? {
-                'n' => string.push(0x0a),
-                'r' => string.push(0x0d),
-                't' => string.push(0x09),
+                'n' => string.push(b'\n'),
+                'r' => string.push(b'\r'),
+                't' => string.push(b'\t'),
                 'b' => string.push(0x08),
                 'f' => string.push(0x0c),
-                '(' => string.push('(' as u8),
-                ')' => string.push(')' as u8),
+                '(' => string.push(b'('),
+                ')' => string.push(b')'),
                 ch @ '0'...'7' => string.push(octal_escape(source, ch)?),
                 _ => {}
             },
@@ -160,12 +160,12 @@ fn string(source: &mut Box<Source>) -> Result<PdfToken> {
 }
 
 fn octal_escape(source: &mut Box<Source>, first: char) -> Result<u8> {
-    let mut octal = first as u8 - '0' as u8;
+    let mut octal = first as u8 - b'0';
     let mut digits = 1;
     loop {
         match source.getch()? {
             ch @ '0'...'7' => {
-                octal = (octal << 3) | (ch as u8 - '0' as u8);
+                octal = (octal << 3) | (ch as u8 - b'0');
                 digits += 1;
                 if digits == 3 {
                     return Ok(octal);
