@@ -75,6 +75,11 @@ Type
 Parent
 Kids
 Count
+# inheritable
+Resources
+MediaBox
+CropBox
+Rotate
 
 #=================================
 # Page values

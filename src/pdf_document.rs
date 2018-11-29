@@ -42,7 +42,7 @@ impl PdfDocument {
         document.seek_reference(trailer.root)?;
         let catalog = Catalog::new(document.read_dictionary(trailer.root)?)?;
         document.seek_reference(catalog.pages)?;
-        let page_root = Pages::new(document.read_dictionary(catalog.pages)?)?;
+        let page_root = Pages::new_root(document.read_dictionary(catalog.pages)?)?;
         document.pages = document.read_pages(&page_root)?;
         Ok(document)
     }
@@ -141,19 +141,19 @@ impl PdfDocument {
         }
     }
 
-    fn read_pages(&mut self, page_root: &Pages) -> Result<(Vec<Page>)> {
+    fn read_pages(&mut self, pages_node: &Pages) -> Result<(Vec<Page>)> {
         let mut pages = vec![];
-        for kid in page_root.kids.iter() {
+        for kid in pages_node.kids.iter() {
             match kid {
                 PdfObject::Reference(r) => {
                     self.seek_reference(r.clone())?;
                     let dict = self.read_dictionary(r.clone())?;
                     match dict.get_name(PdfName::Type) {
                         Some(ref name) if *name == PdfName::Pages => {
-                            pages.append(&mut self.read_pages(&Pages::new(dict)?)?);
+                            pages.append(&mut self.read_pages(&Pages::new(dict, &pages_node)?)?);
                         }
                         Some(ref name) if *name == PdfName::Page => {
-                            pages.push(Page::new(dict)?);
+                            pages.push(Page::new(dict, &pages_node)?);
                         }
                         _ => return Err(PdfError::InvalidPdf("invalid page tree entry")),
                     }
