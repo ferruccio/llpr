@@ -6,6 +6,7 @@ type Result<T> = ::std::result::Result<T, PdfError>;
 pub trait Access {
     // lookup methods
     fn get_name(&self, name: PdfName) -> Option<PdfName>;
+    fn get_reference(&self, name: PdfName) -> Option<Reference>;
 
     // optional extraction methods
     fn want_i32(&mut self, name: PdfName) -> Option<i32>;
@@ -23,7 +24,6 @@ pub trait Access {
     fn need_u32(&mut self, name: PdfName, err: PdfError) -> Result<u32>;
     fn need_reference(&mut self, name: PdfName, err: PdfError) -> Result<Reference>;
     fn need_dictionary(&mut self, name: PdfName, err: PdfError) -> Result<Dictionary>;
-    fn need_type(&mut self, r#type: PdfName, err: PdfError) -> Result<PdfName>;
     fn need_array(&mut self, name: PdfName, err: PdfError) -> Result<Array>;
 }
 
@@ -31,6 +31,13 @@ impl Access for Dictionary {
     fn get_name(&self, name: PdfName) -> Option<PdfName> {
         match self.get(&name) {
             Some(PdfObject::Name(name)) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
+    fn get_reference(&self, name: PdfName) -> Option<Reference> {
+        match self.get(&name) {
+            Some(PdfObject::Reference(ref r)) => Some(*r),
             _ => None,
         }
     }
@@ -123,13 +130,6 @@ impl Access for Dictionary {
         match self.want_dictionary(name) {
             Some(d) => Ok(d),
             None => Err(err),
-        }
-    }
-
-    fn need_type(&mut self, r#type: PdfName, err: PdfError) -> Result<PdfName> {
-        match self.remove(&PdfName::Type) {
-            Some(PdfObject::Name(ref name)) if name == &r#type => Ok(name.clone()),
-            _ => Err(err),
         }
     }
 

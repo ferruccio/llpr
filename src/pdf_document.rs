@@ -1,12 +1,9 @@
-use catalog::Catalog;
 use dictionary::Access;
 use errors::*;
 use next_object::{need_dictionary, need_keyword, need_u32, next_object};
-use pages::{Page, Pages};
 use pdf_source::Source;
 use pdf_types::*;
 use std::io::{Read, SeekFrom};
-use trailer::Trailer;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -21,7 +18,7 @@ pub struct XRefEntry {
 pub struct PdfDocument {
     source: Box<Source>,
     xref: Vec<XRefEntry>,
-    pages: Vec<Page>,
+    pages: Vec<Dictionary>,
 }
 
 impl PdfDocument {
@@ -35,15 +32,25 @@ impl PdfDocument {
             pages: vec![],
         };
         document.source.seek(SeekFrom::Start(trailer_position))?;
-        let (trailer_dict, startxref) = PdfDocument::read_trailer(&mut document.source)?;
-        let trailer = Trailer::new(trailer_dict)?;
+        let (mut trailer_dict, startxref) = PdfDocument::read_trailer(&mut document.source)?;
         document.source.seek(SeekFrom::Start(startxref))?;
-        document.read_xref(trailer.size)?;
-        document.seek_reference(trailer.root)?;
-        let catalog = Catalog::new(document.read_dictionary(trailer.root)?)?;
-        document.seek_reference(catalog.pages)?;
-        let page_root = Pages::new_root(document.read_dictionary(catalog.pages)?)?;
-        document.pages = document.read_pages(&page_root)?;
+        document.read_xref(trailer_dict.need_u32(
+            PdfName::Size,
+            PdfError::InvalidPdf("Size missing in trailer"),
+        )?)?;
+        let catalog_ref = trailer_dict.need_reference(
+            PdfName::Root,
+            PdfError::InvalidPdf("Root missing from trailer"),
+        )?;
+        document.seek_reference(catalog_ref)?;
+        let mut catalog = document.read_dictionary(catalog_ref)?;
+        let page_root_ref = catalog.need_reference(
+            PdfName::Pages,
+            PdfError::InvalidPdf("document page tree missing"),
+        )?;
+        document.seek_reference(page_root_ref)?;
+        let mut page_root = document.read_dictionary(page_root_ref)?;
+        document.pages = document.read_pages(&mut page_root)?;
         Ok(document)
     }
 
@@ -141,19 +148,23 @@ impl PdfDocument {
         }
     }
 
-    fn read_pages(&mut self, pages_node: &Pages) -> Result<(Vec<Page>)> {
+    fn read_pages(&mut self, pages_node: &mut Dictionary) -> Result<(Vec<Dictionary>)> {
         let mut pages = vec![];
-        for kid in pages_node.kids.iter() {
+        let kids = pages_node.need_array(
+            PdfName::Kids,
+            PdfError::InvalidPdf("Kids missing from pages node"),
+        )?;
+        for kid in kids.iter() {
             match kid {
                 PdfObject::Reference(r) => {
                     self.seek_reference(r.clone())?;
-                    let dict = self.read_dictionary(r.clone())?;
+                    let mut dict = self.read_dictionary(r.clone())?;
                     match dict.get_name(PdfName::Type) {
                         Some(ref name) if *name == PdfName::Pages => {
-                            pages.append(&mut self.read_pages(&Pages::new(dict, &pages_node)?)?);
+                            pages.append(&mut self.read_pages(&mut dict)?);
                         }
                         Some(ref name) if *name == PdfName::Page => {
-                            pages.push(Page::new(dict, &pages_node)?);
+                            pages.push(dict);
                         }
                         _ => return Err(PdfError::InvalidPdf("invalid page tree entry")),
                     }
