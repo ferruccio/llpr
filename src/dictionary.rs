@@ -1,40 +1,27 @@
-use errors::*;
 use pdf_types::*;
-
-type Result<T> = ::std::result::Result<T, PdfError>;
 
 pub trait Access {
     // lookup methods
-    fn get_name(&self, name: PdfName) -> Option<PdfName>;
     fn get_reference(&self, name: PdfName) -> Option<Reference>;
+    fn get_i32(&self, name: PdfName) -> Option<i32>;
+    fn get_u32(&self, name: PdfName) -> Option<u32>;
+    fn get_u64(&self, name: PdfName) -> Option<u64>;
+    fn get_string(&self, name: PdfName) -> Option<PdfString>;
+    fn get_name(&self, name: PdfName) -> Option<PdfName>;
+    fn get_symbol(&self, name: PdfName) -> Option<PdfString>;
+    fn get_number(&self, name: PdfName) -> Option<PdfNumber>;
+    fn get_array(&self, name: PdfName) -> Option<Array>;
+    fn get_dictionary(&self, name: PdfName) -> Option<Dictionary>;
 
-    // optional extraction methods
-    fn want_i32(&mut self, name: PdfName) -> Option<i32>;
-    fn want_u32(&mut self, name: PdfName) -> Option<u32>;
-    fn want_u64(&mut self, name: PdfName) -> Option<u64>;
-    fn want_string(&mut self, name: PdfName) -> Option<PdfString>;
-    fn want_name(&mut self, name: PdfName) -> Option<PdfName>;
-    fn want_symbol(&mut self, name: PdfName) -> Option<PdfString>;
-    fn want_number(&mut self, name: PdfName) -> Option<PdfNumber>;
-    fn want_reference(&mut self, name: PdfName) -> Option<Reference>;
-    fn want_dictionary(&mut self, name: PdfName) -> Option<Dictionary>;
-    fn want_array(&mut self, name: PdfName) -> Option<Array>;
-
-    // required extraction methods
-    fn need_u32(&mut self, name: PdfName, err: PdfError) -> Result<u32>;
-    fn need_reference(&mut self, name: PdfName, err: PdfError) -> Result<Reference>;
-    fn need_dictionary(&mut self, name: PdfName, err: PdfError) -> Result<Dictionary>;
-    fn need_array(&mut self, name: PdfName, err: PdfError) -> Result<Array>;
+    // extraction methods
+    fn remove_string(&mut self, name: PdfName) -> Option<PdfString>;
+    fn remove_symbol(&mut self, name: PdfName) -> Option<PdfString>;
+    fn remove_dictionary(&mut self, name: PdfName) -> Option<Dictionary>;
+    fn remove_array(&mut self, name: PdfName) -> Option<Array>;
 }
 
 impl Access for Dictionary {
-    fn get_name(&self, name: PdfName) -> Option<PdfName> {
-        match self.get(&name) {
-            Some(PdfObject::Name(name)) => Some(name.clone()),
-            _ => None,
-        }
-    }
-
+    // lookup methods
     fn get_reference(&self, name: PdfName) -> Option<Reference> {
         match self.get(&name) {
             Some(PdfObject::Reference(ref r)) => Some(*r),
@@ -42,101 +29,95 @@ impl Access for Dictionary {
         }
     }
 
-    fn want_i32(&mut self, name: PdfName) -> Option<i32> {
-        match self.remove(&name) {
-            Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(i as i32),
+    fn get_i32(&self, name: PdfName) -> Option<i32> {
+        match self.get(&name) {
+            Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(*i as i32),
             _ => None,
         }
     }
 
-    fn want_u32(&mut self, name: PdfName) -> Option<u32> {
-        match self.remove(&name) {
-            Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(i as u32),
+    fn get_u32(&self, name: PdfName) -> Option<u32> {
+        match self.get(&name) {
+            Some(PdfObject::Number(PdfNumber::Integer(u))) => Some(*u as u32),
             _ => None,
         }
     }
 
-    fn want_u64(&mut self, name: PdfName) -> Option<u64> {
-        match self.remove(&name) {
-            Some(PdfObject::Number(PdfNumber::Integer(i))) => Some(i as u64),
+    fn get_u64(&self, name: PdfName) -> Option<u64> {
+        match self.get(&name) {
+            Some(PdfObject::Number(PdfNumber::Integer(u))) => Some(*u as u64),
             _ => None,
         }
     }
 
-    fn want_string(&mut self, name: PdfName) -> Option<PdfString> {
+    fn get_string(&self, name: PdfName) -> Option<PdfString> {
+        match self.get(&name) {
+            Some(PdfObject::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    fn get_name(&self, name: PdfName) -> Option<PdfName> {
+        match self.get(&name) {
+            Some(PdfObject::Name(name)) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
+    fn get_symbol(&self, name: PdfName) -> Option<PdfString> {
+        match self.get(&name) {
+            Some(PdfObject::Symbol(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    fn get_number(&self, name: PdfName) -> Option<PdfNumber> {
+        match self.get(&name) {
+            Some(PdfObject::Number(n)) => Some(n.clone()),
+            _ => None,
+        }
+    }
+
+    fn get_array(&self, name: PdfName) -> Option<Array> {
+        match self.get(&name) {
+            Some(PdfObject::Array(a)) => Some(a.clone()),
+            _ => None,
+        }
+    }
+
+    fn get_dictionary(&self, name: PdfName) -> Option<Dictionary> {
+        match self.get(&name) {
+            Some(PdfObject::Dictionary(d)) => Some(d.clone()),
+            _ => None,
+        }
+    }
+
+    // extraction methods
+    fn remove_string(&mut self, name: PdfName) -> Option<PdfString> {
         match self.remove(&name) {
             Some(PdfObject::String(s)) => Some(s),
             _ => None,
         }
     }
 
-    fn want_name(&mut self, name: PdfName) -> Option<PdfName> {
+    fn remove_symbol(&mut self, name: PdfName) -> Option<PdfString> {
         match self.remove(&name) {
-            Some(PdfObject::Name(n)) => Some(n),
+            Some(PdfObject::Symbol(s)) => Some(s),
             _ => None,
         }
     }
 
-    fn want_symbol(&mut self, name: PdfName) -> Option<PdfString> {
-        match self.remove(&name) {
-            Some(PdfObject::Symbol(n)) => Some(n),
-            _ => None,
-        }
-    }
-
-    fn want_number(&mut self, name: PdfName) -> Option<PdfNumber> {
-        match self.remove(&name) {
-            Some(PdfObject::Number(n)) => Some(n),
-            _ => None,
-        }
-    }
-
-    fn want_reference(&mut self, name: PdfName) -> Option<Reference> {
-        match self.remove(&name) {
-            Some(PdfObject::Reference(r)) => Some(r),
-            _ => None,
-        }
-    }
-
-    fn want_dictionary(&mut self, name: PdfName) -> Option<Dictionary> {
+    fn remove_dictionary(&mut self, name: PdfName) -> Option<Dictionary> {
         match self.remove(&name) {
             Some(PdfObject::Dictionary(d)) => Some(d),
             _ => None,
         }
     }
 
-    fn want_array(&mut self, name: PdfName) -> Option<Array> {
+    fn remove_array(&mut self, name: PdfName) -> Option<Array> {
         match self.remove(&name) {
             Some(PdfObject::Array(a)) => Some(a),
             _ => None,
-        }
-    }
-
-    fn need_u32(&mut self, name: PdfName, err: PdfError) -> Result<u32> {
-        match self.want_u32(name) {
-            Some(i) => Ok(i),
-            None => Err(err),
-        }
-    }
-
-    fn need_reference(&mut self, name: PdfName, err: PdfError) -> Result<Reference> {
-        match self.want_reference(name) {
-            Some(r) => Ok(r),
-            None => Err(err),
-        }
-    }
-
-    fn need_dictionary(&mut self, name: PdfName, err: PdfError) -> Result<Dictionary> {
-        match self.want_dictionary(name) {
-            Some(d) => Ok(d),
-            None => Err(err),
-        }
-    }
-
-    fn need_array(&mut self, name: PdfName, err: PdfError) -> Result<Array> {
-        match self.want_array(name) {
-            Some(a) => Ok(a),
-            None => Err(err),
         }
     }
 }

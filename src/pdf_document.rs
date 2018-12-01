@@ -32,22 +32,23 @@ impl PdfDocument {
             pages: vec![],
         };
         document.source.seek(SeekFrom::Start(trailer_position))?;
-        let (mut trailer_dict, startxref) = PdfDocument::read_trailer(&mut document.source)?;
+        let (trailer_dict, startxref) = PdfDocument::read_trailer(&mut document.source)?;
         document.source.seek(SeekFrom::Start(startxref))?;
-        document.read_xref(trailer_dict.need_u32(
-            PdfName::Size,
-            PdfError::InvalidPdf("Size missing in trailer"),
-        )?)?;
-        let catalog_ref = trailer_dict.need_reference(
-            PdfName::Root,
-            PdfError::InvalidPdf("Root missing from trailer"),
-        )?;
+        let size = match trailer_dict.get_u32(PdfName::Size) {
+            Some(s) => s,
+            _ => return Err(PdfError::InvalidPdf("Size missing in trailer")),
+        };
+        document.read_xref(size)?;
+        let catalog_ref = match trailer_dict.get_reference(PdfName::Root) {
+            Some(r) => r,
+            _ => return Err(PdfError::InvalidPdf("Root missing from trailer")),
+        };
         document.seek_reference(catalog_ref)?;
-        let mut catalog = document.read_dictionary(catalog_ref)?;
-        let page_root_ref = catalog.need_reference(
-            PdfName::Pages,
-            PdfError::InvalidPdf("document page tree missing"),
-        )?;
+        let catalog = document.read_dictionary(catalog_ref)?;
+        let page_root_ref = match catalog.get_reference(PdfName::Pages) {
+            Some(r) => r,
+            _ => return Err(PdfError::InvalidPdf("document page tree missing")),
+        };
         document.seek_reference(page_root_ref)?;
         let mut page_root = document.read_dictionary(page_root_ref)?;
         document.pages = document.read_pages(&mut page_root)?;
@@ -150,10 +151,10 @@ impl PdfDocument {
 
     fn read_pages(&mut self, pages_node: &mut Dictionary) -> Result<(Vec<Dictionary>)> {
         let mut pages = vec![];
-        let kids = pages_node.need_array(
-            PdfName::Kids,
-            PdfError::InvalidPdf("Kids missing from pages node"),
-        )?;
+        let kids = match pages_node.get_array(PdfName::Kids) {
+            Some(a) => a,
+            _ => return Err(PdfError::InvalidPdf("Kids missing from pages node")),
+        };
         for kid in kids.iter() {
             match kid {
                 PdfObject::Reference(r) => {
