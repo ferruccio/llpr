@@ -1,5 +1,5 @@
 use errors::*;
-use std::io::{Error, Read, Seek, SeekFrom};
+use std::io::{Cursor, Error, Read, Seek, SeekFrom};
 
 type StdResult<R, E> = ::std::result::Result<R, E>;
 type Result<R> = StdResult<R, PdfError>;
@@ -113,41 +113,35 @@ where
     }
 }
 
-#[cfg(test)]
-pub mod tests {
-    use super::*;
-    use std::io::Cursor;
+pub struct ByteSource<'a> {
+    cursor: Cursor<&'a [u8]>,
+}
 
-    pub struct StrSource {
-        cursor: Cursor<&'static [u8]>,
-    }
-
-    impl StrSource {
-        pub fn new(source: &'static str) -> StrSource {
-            StrSource {
-                cursor: Cursor::new(source.as_bytes()),
-            }
+impl<'a> ByteSource<'a> {
+    pub fn new(source: &'a [u8]) -> ByteSource<'a> {
+        ByteSource {
+            cursor: Cursor::new(source),
         }
     }
+}
 
-    impl Source for StrSource {
-        fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error> {
-            self.cursor.seek(pos)
-        }
-
-        fn getch(&mut self) -> Result<char> {
-            readch(&mut self.cursor)
-        }
-
-        fn backup(&mut self) {
-            let _ = self.seek(SeekFrom::Current(-1));
-        }
+impl<'a> Source for ByteSource<'a> {
+    fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error> {
+        self.cursor.seek(pos)
     }
 
-    impl Read for StrSource {
-        fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Error> {
-            self.cursor.read(buf)
-        }
+    fn getch(&mut self) -> Result<char> {
+        readch(&mut self.cursor)
+    }
+
+    fn backup(&mut self) {
+        let _ = self.seek(SeekFrom::Current(-1));
+    }
+}
+
+impl<'a> Read for ByteSource<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Error> {
+        self.cursor.read(buf)
     }
 }
 

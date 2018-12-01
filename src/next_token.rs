@@ -1,34 +1,15 @@
 use errors::*;
 use pdf_source::Source;
+use pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
-
-pub type PdfString = Vec<u8>;
-
-include!(concat!(env!("OUT_DIR"), "/codegen_names.rs"));
 
 fn pdf_name(name: &str) -> Option<PdfName> {
     NAMES.get(name).cloned()
 }
 
-include!(concat!(env!("OUT_DIR"), "/codegen_keywords.rs"));
-
 fn pdf_keyword(keyword: &str) -> Option<PdfKeyword> {
     KEYWORDS.get(keyword).cloned()
-}
-
-#[derive(Debug, PartialEq)]
-pub enum PdfToken {
-    Keyword(PdfKeyword),
-    Integer(i64),
-    Real(f64),
-    Name(PdfName),
-    Symbol(PdfString), // a Symbol is an unrecognized Name
-    Str(PdfString),
-    BeginArray,
-    EndArray,
-    BeginDictionary,
-    EndDictionary,
 }
 
 pub fn next_token(source: &mut Box<Source>) -> Result<PdfToken> {
@@ -116,6 +97,15 @@ fn number(source: &mut Box<Source>, first: char) -> Result<PdfToken> {
     }
 }
 
+fn nybble(ch: char) -> Result<u8> {
+    match ch {
+        ch @ '0'...'9' => Ok(ch as u8 - b'0'),
+        ch @ 'A'...'F' => Ok(10 + (ch as u8 - b'A')),
+        ch @ 'a'...'f' => Ok(10 + (ch as u8 - b'a')),
+        _ => Err(PdfError::InvalidPdf("invalid hex character")),
+    }
+}
+
 fn name_or_symbol(source: &mut Box<Source>) -> Result<PdfToken> {
     let mut name = "".to_owned();
     loop {
@@ -126,6 +116,11 @@ fn name_or_symbol(source: &mut Box<Source>) -> Result<PdfToken> {
                     Some(name) => Ok(PdfToken::Name(name)),
                     None => Ok(PdfToken::Symbol(name.as_bytes().to_vec())),
                 };
+            }
+            '#' => {
+                let hi = nybble(source.getch()?)?;
+                let lo = nybble(source.getch()?)?;
+                name.push((hi << 4 | lo) as char);
             }
             ch @ _ => name.push(ch),
         }
@@ -138,24 +133,24 @@ fn string(source: &mut Box<Source>) -> Result<PdfToken> {
     loop {
         match source.getch()? {
             '(' => {
-                string.push('(' as u8);
+                string.push(b'(');
                 nesting += 1;
             }
             ')' => {
                 if nesting == 0 {
                     return Ok(PdfToken::Str(string));
                 }
-                string.push(')' as u8);
+                string.push(b')');
                 nesting -= 1;
             }
             '\\' => match source.getch()? {
-                'n' => string.push(0x0a),
-                'r' => string.push(0x0d),
-                't' => string.push(0x09),
+                'n' => string.push(b'\n'),
+                'r' => string.push(b'\r'),
+                't' => string.push(b'\t'),
                 'b' => string.push(0x08),
                 'f' => string.push(0x0c),
-                '(' => string.push('(' as u8),
-                ')' => string.push(')' as u8),
+                '(' => string.push(b'('),
+                ')' => string.push(b')'),
                 ch @ '0'...'7' => string.push(octal_escape(source, ch)?),
                 _ => {}
             },
@@ -165,12 +160,12 @@ fn string(source: &mut Box<Source>) -> Result<PdfToken> {
 }
 
 fn octal_escape(source: &mut Box<Source>, first: char) -> Result<u8> {
-    let mut octal = first as u8 - '0' as u8;
+    let mut octal = first as u8 - b'0';
     let mut digits = 1;
     loop {
         match source.getch()? {
             ch @ '0'...'7' => {
-                octal = (octal << 3) | (ch as u8 - '0' as u8);
+                octal = (octal << 3) | (ch as u8 - b'0');
                 digits += 1;
                 if digits == 3 {
                     return Ok(octal);
@@ -192,25 +187,16 @@ fn hex_string(source: &mut Box<Source>) -> Result<PdfToken> {
     loop {
         match source.getch()? {
             ' ' | '\t' | '\n' | '\r' | '\x0c' => {}
-            ch @ '0'...'9' => {
-                hex = ch as u8 - '0' as u8;
-                first = !first;
-            }
-            ch @ 'A'...'F' => {
-                hex = 10 + (ch as u8 - 'A' as u8);
-                first = !first;
-            }
-            ch @ 'a'...'f' => {
-                hex = 10 + (ch as u8 - 'a' as u8);
-                first = !first;
-            }
             '>' => {
                 if first {
                     string.push(hex << 4);
                 }
                 return Ok(PdfToken::Str(string));
             }
-            _ => return Err(PdfError::InvalidPdf("unexpected character in hex string")),
+            ch @ _ => {
+                hex = nybble(ch)?;
+                first = !first;
+            }
         }
         if first {
             value = hex;
@@ -223,7 +209,7 @@ fn hex_string(source: &mut Box<Source>) -> Result<PdfToken> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::tests::StrSource;
+    use pdf_source::ByteSource;
 
     fn next(source: &mut Box<Source>) -> PdfToken {
         next_token(source).unwrap()
@@ -231,7 +217,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let mut source: Box<Source> = Box::new(StrSource::new("trailer false\nwho_knows "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"trailer false\nwho_knows "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Keyword(PdfKeyword::trailer));
         let tok = next(&mut source);
@@ -243,7 +229,7 @@ mod tests {
     #[test]
     fn integers() {
         let mut source: Box<Source> =
-            Box::new(StrSource::new("0 15 -24\t\t+212 %blah blah blah\n12345 "));
+            Box::new(ByteSource::new(b"0 15 -24\t\t+212 %blah blah blah\n12345 "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Integer(0));
         let tok = next(&mut source);
@@ -258,7 +244,7 @@ mod tests {
 
     #[test]
     fn reals() {
-        let mut source: Box<Source> = Box::new(StrSource::new("0.0 2030.0 3.1415926 -32. .5 "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"0.0 2030.0 3.1415926 -32. .5 "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Real(0.0));
         let tok = next(&mut source);
@@ -273,7 +259,7 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut source: Box<Source> = Box::new(StrSource::new("/Root /Size "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"/Root /Size "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Name(PdfName::Root));
         let tok = next(&mut source);
@@ -282,17 +268,25 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let mut source: Box<Source> = Box::new(StrSource::new("/Who /What "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(
+            b"/Who /What /#57here /W#68#65#6e /And#20How ",
+        ));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Symbol("Who".as_bytes().to_vec()));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Symbol("What".as_bytes().to_vec()));
+        let tok = next(&mut source);
+        assert_eq!(tok, PdfToken::Symbol("Where".as_bytes().to_vec()));
+        let tok = next(&mut source);
+        assert_eq!(tok, PdfToken::Symbol("When".as_bytes().to_vec()));
+        let tok = next(&mut source);
+        assert_eq!(tok, PdfToken::Symbol("And How".as_bytes().to_vec()));
     }
 
     #[test]
     fn strings() {
-        let mut source: Box<Source> = Box::new(StrSource::new(
-            r###"
+        let mut source: Box<Source> = Box::new(ByteSource::new(
+            br###"
 (This is a string)
 (Strings may contain newlines
 and such.)
@@ -365,7 +359,7 @@ special characters ( * ! & } ^ % and so on ).)
     #[test]
     fn hex_strings() {
         let mut source: Box<Source> =
-            Box::new(StrSource::new("<><a> <12AbCd> <deadbeef> <CAFEBABE> "));
+            Box::new(ByteSource::new(b"<><a> <12AbCd> <deadbeef> <CAFEBABE> "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Str(vec![]));
         let tok = next(&mut source);
@@ -380,7 +374,7 @@ special characters ( * ! & } ^ % and so on ).)
 
     #[test]
     fn structures() {
-        let mut source: Box<Source> = Box::new(StrSource::new("<< >> [ ] "));
+        let mut source: Box<Source> = Box::new(ByteSource::new(b"<< >> [ ] "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::BeginDictionary);
         let tok = next(&mut source);

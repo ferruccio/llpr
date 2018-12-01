@@ -1,7 +1,6 @@
-use dictionary::{Dictionary, ExtractOption, ExtractRequired};
+use dictionary::Access;
 use errors::*;
-use next_object::{Array, PdfNumber, PdfObject, Reference};
-use next_token::{PdfName, PdfString};
+use pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -11,15 +10,55 @@ pub struct Pages {
     pub parent: Option<Reference>,
     pub kids: Array,
     pub count: u32,
+    // inheritable
+    pub resources: Option<Dictionary>,
+    pub media_box: Option<Array>,
+    pub crop_box: Option<Array>,
+    pub rotate: Option<i32>,
 }
 
 impl Pages {
-    pub fn new(mut dict: Dictionary) -> Result<Pages> {
+    pub fn new_root(mut dict: Dictionary) -> Result<Pages> {
         Ok(Pages {
             r#type: dict.need_type(PdfName::Pages, PdfError::InvalidPages)?,
             parent: dict.want_reference(PdfName::Parent),
             kids: dict.need_array(PdfName::Kids, PdfError::InvalidPages)?,
             count: dict.need_u32(PdfName::Count, PdfError::InvalidPages)?,
+            // inheritable
+            resources: dict.want_dictionary(PdfName::Resources),
+            media_box: dict.want_array(PdfName::MediaBox),
+            crop_box: dict.want_array(PdfName::CropBox),
+            rotate: dict.want_i32(PdfName::Rotate),
+        })
+    }
+
+    pub fn new(mut dict: Dictionary, parent: &Pages) -> Result<Pages> {
+        let resources = match (dict.want_dictionary(PdfName::Resources), &parent.resources) {
+            (None, r) => r.clone(),
+            (r, _) => r,
+        };
+        let media_box = match (dict.want_array(PdfName::MediaBox), &parent.media_box) {
+            (None, mb) => mb.clone(),
+            (mb, _) => mb,
+        };
+        let crop_box = match (dict.want_array(PdfName::CropBox), &parent.crop_box) {
+            (None, cb) => cb.clone(),
+            (cb, _) => cb,
+        };
+        let rotate = match (dict.want_i32(PdfName::Rotate), parent.rotate) {
+            (None, r) => r,
+            (r, _) => r,
+        };
+        Ok(Pages {
+            r#type: dict.need_type(PdfName::Pages, PdfError::InvalidPages)?,
+            parent: dict.want_reference(PdfName::Parent),
+            kids: dict.need_array(PdfName::Kids, PdfError::InvalidPages)?,
+            count: dict.need_u32(PdfName::Count, PdfError::InvalidPages)?,
+            // inheritable
+            resources: resources,
+            media_box: media_box,
+            crop_box: crop_box,
+            rotate: rotate,
         })
     }
 }
@@ -29,8 +68,8 @@ pub struct Page {
     pub r#type: PdfName, // must be /Page
     pub parent: Reference,
     pub last_modified: Option<PdfString>,
-    pub resources: Option<Dictionary>,
-    pub media_box: Option<Array>,
+    pub resources: Dictionary,
+    pub media_box: Array,
     pub crop_box: Option<Array>,
     pub bleed_box: Option<Array>,
     pub trim_box: Option<Array>,
@@ -58,20 +97,40 @@ pub struct Page {
 }
 
 impl Page {
-    pub fn new(mut dict: Dictionary) -> Result<Page> {
+    pub fn new(mut dict: Dictionary, parent: &Pages) -> Result<Page> {
+        let resources: Result<Dictionary> =
+            match (dict.want_dictionary(PdfName::Resources), &parent.resources) {
+                (Some(r), _) => Ok(r),
+                (None, Some(r)) => Ok(r.clone()),
+                (None, None) => Err(PdfError::InvalidPage),
+            };
+        let media_box: Result<Array> = match (dict.want_array(PdfName::MediaBox), &parent.media_box)
+        {
+            (Some(mb), _) => Ok(mb),
+            (None, Some(mb)) => Ok(mb.clone()),
+            (None, None) => Err(PdfError::InvalidPage),
+        };
+        let crop_box = match (dict.want_array(PdfName::CropBox), &parent.crop_box) {
+            (None, cb) => cb.clone(),
+            (cb, _) => cb,
+        };
+        let rotate = match (dict.want_i32(PdfName::Rotate), parent.rotate) {
+            (None, r) => r,
+            (r, _) => r,
+        };
         Ok(Page {
             r#type: dict.need_type(PdfName::Page, PdfError::InvalidPage)?,
             parent: dict.need_reference(PdfName::Parent, PdfError::InvalidPage)?,
             last_modified: dict.want_string(PdfName::LastModified),
-            resources: dict.want_dictionary(PdfName::Resources),
-            media_box: dict.want_array(PdfName::MediaBox),
-            crop_box: dict.want_array(PdfName::CropBox),
+            resources: resources?,
+            media_box: media_box?,
+            crop_box: crop_box,
             bleed_box: dict.want_array(PdfName::BleedBox),
             trim_box: dict.want_array(PdfName::TrimBox),
             art_box: dict.want_array(PdfName::ArtBox),
             box_color_info: dict.want_dictionary(PdfName::BoxColorInfo),
             contents: None,
-            rotate: dict.want_i32(PdfName::Rotate),
+            rotate: rotate,
             group: dict.want_dictionary(PdfName::Group),
             thumb: None,
             dur: dict.want_number(PdfName::Dur),

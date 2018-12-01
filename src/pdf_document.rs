@@ -1,12 +1,10 @@
 use catalog::Catalog;
-use dictionary::{Dictionary, GetFrom};
+use dictionary::Access;
 use errors::*;
-use next_object::{
-    need_dictionary, need_keyword, need_u32, next_object, PdfNumber, PdfObject, Reference,
-};
-use next_token::{PdfKeyword, PdfName};
+use next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use pages::{Page, Pages};
 use pdf_source::Source;
+use pdf_types::*;
 use std::io::{Read, SeekFrom};
 use trailer::Trailer;
 
@@ -44,7 +42,7 @@ impl PdfDocument {
         document.seek_reference(trailer.root)?;
         let catalog = Catalog::new(document.read_dictionary(trailer.root)?)?;
         document.seek_reference(catalog.pages)?;
-        let page_root = Pages::new(document.read_dictionary(catalog.pages)?)?;
+        let page_root = Pages::new_root(document.read_dictionary(catalog.pages)?)?;
         document.pages = document.read_pages(&page_root)?;
         Ok(document)
     }
@@ -143,19 +141,19 @@ impl PdfDocument {
         }
     }
 
-    fn read_pages(&mut self, page_root: &Pages) -> Result<(Vec<Page>)> {
+    fn read_pages(&mut self, pages_node: &Pages) -> Result<(Vec<Page>)> {
         let mut pages = vec![];
-        for kid in page_root.kids.iter() {
+        for kid in pages_node.kids.iter() {
             match kid {
                 PdfObject::Reference(r) => {
                     self.seek_reference(r.clone())?;
                     let dict = self.read_dictionary(r.clone())?;
                     match dict.get_name(PdfName::Type) {
                         Some(ref name) if *name == PdfName::Pages => {
-                            pages.append(&mut self.read_pages(&Pages::new(dict)?)?);
+                            pages.append(&mut self.read_pages(&Pages::new(dict, &pages_node)?)?);
                         }
                         Some(ref name) if *name == PdfName::Page => {
-                            pages.push(Page::new(dict)?);
+                            pages.push(Page::new(dict, &pages_node)?);
                         }
                         _ => return Err(PdfError::InvalidPdf("invalid page tree entry")),
                     }
@@ -198,8 +196,7 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::tests::StrSource;
-    use pdf_source::PdfSource;
+    use pdf_source::{ByteSource, PdfSource};
     use std::fs::File;
 
     fn open_test_file(name: &str) -> Box<PdfSource<File>> {
@@ -216,7 +213,7 @@ mod tests {
 
     #[test]
     fn bad_header() {
-        let pdf = Box::new(StrSource::new("%PDx-1.3\n% bad pdf header\n"));
+        let pdf = Box::new(ByteSource::new(b"%PDx-1.3\n% bad pdf header\n"));
         assert!(PdfDocument::new(pdf).is_err());
     }
 
