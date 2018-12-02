@@ -7,6 +7,7 @@ build = "build.rs"
 [dependencies]
 quick-error = "1.2.2"
 phf = "0.7.23"
+inflate = "0.4.3"
 
 [build-dependencies]
 phf_codegen = "0.7.23"

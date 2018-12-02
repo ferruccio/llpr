@@ -114,3 +114,27 @@ TemplateInstantiated
 PresSteps
 UserUnit
 VP
+
+#=================================
+# stream dictionary
+#=================================
+Length
+Filter
+DecodeParms
+F
+FFilter
+FDecodeParms
+DL
+
+#=================================
+# Filter names
+#=================================
+ASCIIHexDecode
+ASCII85Decode
+LZWDecode
+FlateDecode
+RunLengthDecode
+CCITTFaxDecode
+JBIG2Decode
+DCTDecode
+Crypt

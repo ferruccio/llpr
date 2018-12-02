@@ -1,3 +1,4 @@
+extern crate inflate;
 extern crate phf;
 extern crate quick_error;
 
@@ -8,6 +9,7 @@ mod next_token;
 mod pdf_document;
 mod pdf_source;
 mod pdf_types;
+mod streams;
 
 pub use pdf_document::PdfDocument;
 pub use pdf_source::{ByteSource, PdfSource, StreamSource};

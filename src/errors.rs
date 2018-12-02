@@ -4,9 +4,17 @@ use quick_error::quick_error;
 quick_error! {
     #[derive(Debug)]
     pub enum PdfError {
+        DecompressionError(detail: String) {
+            description("decompression error")
+            display("decompression error: {}", detail)
+        }
+        InternalError(detail: &'static str) {
+            description("internal error")
+            display("internal error: {}", detail)
+        }
         InvalidPdf(detail: &'static str) {
             description("invalid pdf file")
-            display("Invalid PDF file: {}", detail)
+            display("invalid pdf file: {}", detail)
         }
         KeywordExpected(keyword: PdfKeyword) {
             description("pdf keyword expected")

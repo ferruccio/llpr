@@ -4,6 +4,7 @@ use next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use pdf_source::Source;
 use pdf_types::*;
 use std::io::{Read, SeekFrom};
+use streams::decode_stream;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -176,11 +177,29 @@ impl PdfDocument {
         Ok(pages)
     }
 
-    fn read_dictionary(&mut self, reference: Reference) -> Result<Dictionary> {
+    fn read_object(&mut self, reference: Reference) -> Result<PdfObject> {
+        need_u32(&mut self.source, reference.id)?;
+        need_u32(&mut self.source, reference.gen as u32)?;
+        need_keyword(&mut self.source, PdfKeyword::obj)?;
+        match next_object(&mut self.source)? {
+            Some(obj) => {
+                need_keyword(&mut self.source, PdfKeyword::endobj)?;
+                Ok(obj)
+            }
+            None => Err(PdfError::InvalidPdf("pdf object expected")),
+        }
+    }
+
+    fn read_prefix(&mut self, reference: Reference) -> Result<Dictionary> {
         need_u32(&mut self.source, reference.id)?;
         need_u32(&mut self.source, reference.gen as u32)?;
         need_keyword(&mut self.source, PdfKeyword::obj)?;
         let dictionary = need_dictionary(&mut self.source)?;
+        Ok(dictionary)
+    }
+
+    fn read_dictionary(&mut self, reference: Reference) -> Result<Dictionary> {
+        let dictionary = self.read_prefix(reference)?;
         need_keyword(&mut self.source, PdfKeyword::endobj)?;
         Ok(dictionary)
     }
@@ -192,6 +211,65 @@ impl PdfDocument {
         } else {
             Ok(self.source.seek(SeekFrom::Start(self.xref[id].position))?)
         }
+    }
+
+    fn dereference(&mut self, object: PdfObject) -> Result<PdfObject> {
+        match object {
+            PdfObject::Reference(r) => {
+                self.seek_reference(r)?;
+                let obj = self.read_object(r)?;
+                Ok(self.dereference(obj)?)
+            }
+            PdfObject::Array(array) => {
+                let a: Result<Vec<_>> = array.into_iter().map(|o| self.dereference(o)).collect();
+                Ok(PdfObject::Array(Box::new(a?)))
+            }
+            PdfObject::Dictionary(dict) => {
+                let d = dict
+                    .into_iter()
+                    .map(|(k, v)| match k {
+                        PdfName::Parent | PdfName::Contents | PdfName::Resources => (k, v),
+                        _ => (k, self.dereference(v).unwrap_or(PdfObject::Null)),
+                    }).collect();
+                Ok(PdfObject::Dictionary(Box::new(d)))
+            }
+            obj @ _ => Ok(obj),
+        }
+    }
+
+    fn dereference_dictionary(&mut self, dictionary: Dictionary) -> Result<Dictionary> {
+        match self.dereference(PdfObject::Dictionary(dictionary))? {
+            PdfObject::Dictionary(dictionary) => Ok(dictionary),
+            _ => Err(PdfError::InternalError(
+                "unexpected result from dereference_dictionary",
+            )),
+        }
+    }
+
+    fn read_stream(&mut self, reference: Reference) -> Result<Vec<u8>> {
+        self.seek_reference(reference)?;
+        let stream_dict = self.read_prefix(reference)?;
+        need_keyword(&mut self.source, PdfKeyword::stream)?;
+        while self.source.getch()? != '\n' {}
+        let pos = self.source.seek(SeekFrom::Current(0))?;
+        let stream_dict = self.dereference_dictionary(stream_dict)?;
+        let _ = self.source.seek(SeekFrom::Start(pos))?;
+        let length = match stream_dict.get_u32(PdfName::Length) {
+            Some(length) => length as usize,
+            None => {
+                return Err(PdfError::InvalidPdf(
+                    "Length missing from stream dictionary",
+                ))
+            }
+        };
+        let mut buffer = vec![];
+        buffer.resize(length, 0);
+        let nread = self.source.read(&mut buffer)?;
+        if nread != length {
+            return Err(PdfError::InternalError("failed to read stream"));
+        }
+        need_keyword(&mut self.source, PdfKeyword::endstream)?;
+        decode_stream(buffer, stream_dict)
     }
 }
 
@@ -315,5 +393,41 @@ mod tests {
         let pdf = PdfDocument::new(open_test_file("tracemonkey.pdf")).unwrap();
         assert_eq!(pdf.xref.len(), 997);
         assert_eq!(pdf.page_count(), 14);
+    }
+
+    #[test]
+    fn minimal_pdf_stream() {
+        let mut pdf = PdfDocument::new(open_test_file("minimal.pdf")).unwrap();
+        let buffer = pdf.read_stream(Reference::new(4, 0)).unwrap();
+        assert_eq!(
+            buffer,
+            vec![
+                32, 32, 66, 84, 10, 32, 32, 32, 32, 47, 70, 49, 32, 49, 56, 32, 84, 102, 10, 32,
+                32, 32, 32, 48, 32, 48, 32, 84, 100, 10, 32, 32, 32, 32, 40, 72, 101, 108, 108,
+                111, 32, 87, 111, 114, 108, 100, 41, 32, 84, 106, 10, 32, 32, 69, 84
+            ]
+        );
+    }
+
+    #[test]
+    fn tracemonkey_pdf_stream() {
+        let mut pdf = PdfDocument::new(open_test_file("tracemonkey.pdf")).unwrap();
+        let contents_refs: Vec<_> = pdf
+            .pages
+            .iter()
+            .map(|p| p.get_reference(PdfName::Contents).unwrap())
+            .collect();
+        let src = env!("CARGO_MANIFEST_DIR");
+        for reference in contents_refs.into_iter() {
+            let stream_buffer = pdf.read_stream(reference).unwrap();
+            let filename = format!(
+                "{}/testing/tracemonkey-streams/{}-{}.txt",
+                src, reference.id, reference.gen
+            );
+            let mut file = ::std::fs::File::open(&filename).unwrap();
+            let mut file_buffer = vec![];
+            let nbytes = file.read_to_end(&mut file_buffer).unwrap();
+            assert_eq!(stream_buffer, &file_buffer[0..nbytes]);
+        }
     }
 }
