@@ -26,18 +26,6 @@ quick_error! {
         InvalidReferenceTarget{
             description("target does not match reference")
         }
-        InvalidTrailerDictionary {
-            description("trailer dictionary missing required item(s)")
-        }
-        InvalidCatalog {
-            description("document catalog missing required item(s)")
-        }
-        InvalidPages {
-            description("pages entry missing required item(s)")
-        }
-        InvalidPage {
-            description("page entry missing required item(s)")
-        }
         EndOfFile {
             description("unexpected end of file")
         }
