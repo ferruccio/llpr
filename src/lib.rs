@@ -6,6 +6,7 @@ mod dictionary;
 mod errors;
 mod next_object;
 mod next_token;
+mod page_contents;
 mod pdf_document;
 mod pdf_source;
 mod pdf_types;

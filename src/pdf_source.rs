@@ -145,6 +145,38 @@ impl<'a> Read for ByteSource<'a> {
     }
 }
 
+pub struct VByteSource {
+    cursor: Cursor<Vec<u8>>,
+}
+
+impl VByteSource {
+    pub fn new(bytes: Vec<u8>) -> VByteSource {
+        VByteSource {
+            cursor: Cursor::new(bytes),
+        }
+    }
+}
+
+impl Source for VByteSource {
+    fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error> {
+        self.cursor.seek(pos)
+    }
+
+    fn getch(&mut self) -> Result<char> {
+        readch(&mut self.cursor)
+    }
+
+    fn backup(&mut self) {
+        let _ = self.seek(SeekFrom::Current(-1));
+    }
+}
+
+impl Read for VByteSource {
+    fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Error> {
+        self.cursor.read(buf)
+    }
+}
+
 fn readch(source: &mut Read) -> Result<char> {
     let mut buffer = [0];
     match source.read(&mut buffer)? {

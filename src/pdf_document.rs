@@ -1,6 +1,7 @@
 use dictionary::Access;
 use errors::*;
 use next_object::{need_dictionary, need_keyword, need_u32, next_object};
+use page_contents::PageContents;
 use pdf_source::Source;
 use pdf_types::*;
 use std::io::{Read, SeekFrom};
@@ -58,6 +59,15 @@ impl PdfDocument {
 
     pub fn page_count(&self) -> u32 {
         self.pages.len() as u32
+    }
+
+    pub fn page_contents(&mut self, pageno: u32) -> Result<PageContents> {
+        if pageno < self.pages.len() as u32 {
+            let page_dict = self.pages[pageno as usize].clone();
+            Ok(PageContents::new(self.contents(&page_dict)?))
+        } else {
+            Err(PdfError::InvalidPageNumber)
+        }
     }
 }
 
@@ -271,6 +281,18 @@ impl PdfDocument {
         need_keyword(&mut self.source, PdfKeyword::endstream)?;
         decode_stream(buffer, stream_dict)
     }
+
+    fn read_streams(&mut self, streams: &Array) -> Result<Vec<u8>> {
+        Err(PdfError::InternalError("read_streams not implemented"))
+    }
+
+    fn contents(&mut self, page_dict: &Dictionary) -> Result<Vec<u8>> {
+        match page_dict.get(&PdfName::Contents) {
+            Some(PdfObject::Reference(reference)) => self.read_stream(*reference),
+            Some(PdfObject::Array(array)) => self.read_streams(array),
+            _ => Err(PdfError::InvalidPdf("invalid page contents")),
+        }
+    }
 }
 
 fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
@@ -429,5 +451,52 @@ mod tests {
             let nbytes = file.read_to_end(&mut file_buffer).unwrap();
             assert_eq!(stream_buffer, &file_buffer[0..nbytes]);
         }
+    }
+
+    #[test]
+    fn minimal_pdf_contents_iter() {
+        let mut pdf = PdfDocument::new(open_test_file("minimal.pdf")).unwrap();
+        let mut pc = pdf.page_contents(0).unwrap();
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Keyword(PdfKeyword::BT)
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Symbol(b"F1".to_vec())
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Number(PdfNumber::Integer(18))
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Keyword(PdfKeyword::Tf)
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Number(PdfNumber::Integer(0))
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Number(PdfNumber::Integer(0))
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Keyword(PdfKeyword::Td)
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::String(b"Hello World".to_vec())
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Keyword(PdfKeyword::Tj)
+        );
+        assert_eq!(
+            pc.next_object().unwrap().unwrap(),
+            PdfObject::Keyword(PdfKeyword::ET)
+        );
+        assert!(pc.next_object().is_err());
     }
 }

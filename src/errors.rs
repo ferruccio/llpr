@@ -26,6 +26,9 @@ quick_error! {
         InvalidReferenceTarget{
             description("target does not match reference")
         }
+        InvalidPageNumber{
+            description("invalid page number")
+        }
         EndOfFile {
             description("unexpected end of file")
         }
