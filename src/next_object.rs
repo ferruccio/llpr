@@ -113,8 +113,18 @@ mod tests {
     }
 
     #[test]
+    fn end_of_stream() {
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b""));
+        let obj = next_object(&mut source).unwrap();
+        assert_eq!(obj, None);
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"\t \n"));
+        let obj = next_object(&mut source).unwrap();
+        assert_eq!(obj, None);
+    }
+
+    #[test]
     fn keywords() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b" trailer\n\txref "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b" trailer\n\txref"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Keyword(PdfKeyword::trailer));
         let n = next(&mut source);
@@ -123,7 +133,7 @@ mod tests {
 
     #[test]
     fn value_keywords() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"null true false "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"null true false"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Null);
         let n = next(&mut source);
@@ -134,8 +144,7 @@ mod tests {
 
     #[test]
     fn numbers() {
-        let mut source: Box<Source> =
-            Box::new(ByteSliceSource::new(b"0 0.0 1 1.0 -10.34 10000.5 "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"0 0.0 1 1.0 -10.34 10000.5"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Number(PdfNumber::Integer(0)));
         let n = next(&mut source);
@@ -176,7 +185,7 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Root /Size "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Root /Size"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Name(PdfName::Root));
         let n = next(&mut source);
@@ -185,7 +194,7 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Who /What "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Who /What"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Symbol("Who".as_bytes().to_vec()));
         let n = next(&mut source);
@@ -194,7 +203,7 @@ mod tests {
 
     #[test]
     fn array() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"[0 null [(string)] 1.0] "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"[0 null [(string)] 1.0]"));
         let n = next(&mut source);
         assert_eq!(
             n,
@@ -211,7 +220,7 @@ mod tests {
 
     #[test]
     fn array_of_references() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"[0 1 R 2 3 R 4 5 R] "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"[0 1 R 2 3 R 4 5 R]"));
         let a = next(&mut source);
         assert_eq!(
             a,
@@ -235,7 +244,7 @@ mod tests {
                     /Prev 32
                     /Metadata 11 2 R
                 >>
-            >> "##,
+            >>"##,
         ));
         let n1 = next(&mut source1);
         let mut source2: Box<Source> = Box::new(ByteSliceSource::new(
@@ -249,7 +258,7 @@ mod tests {
                     /Prev     32
                     /Metadata 11 2 R
                 >>
-            >> "##,
+            >>"##,
         ));
         let n2 = next(&mut source2);
         assert_eq!(n1, n2);

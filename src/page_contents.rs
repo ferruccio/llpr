@@ -10,9 +10,7 @@ pub struct PageContents {
 }
 
 impl PageContents {
-    pub fn new(mut contents: Vec<u8>) -> PageContents {
-        // shove a space at the end so we don't get a premature PdfError::EndOfFile
-        contents.push(b' ');
+    pub fn new(contents: Vec<u8>) -> PageContents {
         PageContents {
             source: Box::new(ByteSource::new(contents)),
         }
