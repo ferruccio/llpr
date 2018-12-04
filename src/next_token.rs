@@ -8,8 +8,11 @@ fn pdf_name(name: &str) -> Option<PdfName> {
     NAMES.get(name).cloned()
 }
 
-fn pdf_keyword(keyword: &str) -> Option<PdfKeyword> {
-    KEYWORDS.get(keyword).cloned()
+fn pdf_keyword(keyword: &str) -> PdfKeyword {
+    match KEYWORDS.get(keyword) {
+        Some(keyword) => keyword.clone(),
+        None => PdfKeyword::Unknown,
+    }
 }
 
 pub fn next_token(source: &mut Box<Source>) -> Result<PdfToken> {
@@ -66,10 +69,7 @@ fn keyword(source: &mut Box<Source>, first: char) -> Result<PdfToken> {
             ch @ 'A'...'Z' | ch @ 'a'...'z' => keyword.push(ch),
             _ => {
                 source.backup();
-                return match pdf_keyword(&keyword) {
-                    Some(keyword) => Ok(PdfToken::Keyword(keyword)),
-                    None => Ok(PdfToken::Keyword(PdfKeyword::Unknown)),
-                };
+                return Ok(PdfToken::Keyword(pdf_keyword(&keyword)));
             }
         }
     }
