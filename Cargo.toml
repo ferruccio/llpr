@@ -11,3 +11,10 @@ inflate = "0.4.3"
 
 [build-dependencies]
 phf_codegen = "0.7.23"
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[dev-dependencies]
+criterion = "0.2.5"
