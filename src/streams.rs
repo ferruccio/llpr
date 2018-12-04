@@ -6,7 +6,7 @@ type Result<T> = ::std::result::Result<T, PdfError>;
 
 struct Filter {
     name: PdfName,
-    decode_parms: Option<Dictionary>,
+    _decode_parms: Option<Dictionary>,
 }
 
 pub fn decode_stream(mut stream: Vec<u8>, stream_dict: Dictionary) -> Result<Vec<u8>> {
@@ -66,18 +66,18 @@ fn filters(mut stream_dict: Dictionary) -> Result<Vec<Filter>> {
     ) {
         (Some(PdfObject::Name(name)), None) => Ok(vec![Filter {
             name: name,
-            decode_parms: None,
+            _decode_parms: None,
         }]),
         (Some(PdfObject::Name(name)), Some(PdfObject::Dictionary(dp))) => Ok(vec![Filter {
             name: name,
-            decode_parms: Some(dp),
+            _decode_parms: Some(dp),
         }]),
         (Some(PdfObject::Array(names)), None) => {
             fn name_to_filter(name: &PdfObject) -> Result<Filter> {
                 match name {
                     PdfObject::Name(name) => Ok(Filter {
                         name: name.clone(),
-                        decode_parms: None,
+                        _decode_parms: None,
                     }),
                     _ => Err(PdfError::InvalidPdf("name expected")),
                 }
@@ -90,7 +90,7 @@ fn filters(mut stream_dict: Dictionary) -> Result<Vec<Filter>> {
                 match item {
                     (PdfObject::Name(name), PdfObject::Dictionary(dp)) => Ok(Filter {
                         name: name.clone(),
-                        decode_parms: Some(dp.clone()),
+                        _decode_parms: Some(dp.clone()),
                     }),
                     _ => Err(PdfError::InvalidPdf("name/dictionary expected")),
                 }

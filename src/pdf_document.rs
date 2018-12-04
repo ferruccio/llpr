@@ -282,7 +282,7 @@ impl PdfDocument {
         decode_stream(buffer, stream_dict)
     }
 
-    fn read_streams(&mut self, streams: &Array) -> Result<Vec<u8>> {
+    fn read_streams(&mut self, _streams: &Array) -> Result<Vec<u8>> {
         Err(PdfError::InternalError("read_streams not implemented"))
     }
 
@@ -308,7 +308,7 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::{ByteSource, PdfSource};
+    use pdf_source::{ByteSliceSource, PdfSource};
     use std::fs::File;
 
     fn open_test_file(name: &str) -> Box<PdfSource<File>> {
@@ -318,14 +318,8 @@ mod tests {
     }
 
     #[test]
-    fn open_minimal_pdf() {
-        let pdf = open_test_file("minimal.pdf");
-        assert!(PdfDocument::new(pdf).is_ok());
-    }
-
-    #[test]
     fn bad_header() {
-        let pdf = Box::new(ByteSource::new(b"%PDx-1.3\n% bad pdf header\n"));
+        let pdf = Box::new(ByteSliceSource::new(b"%PDx-1.3\n% bad pdf header\n"));
         assert!(PdfDocument::new(pdf).is_err());
     }
 

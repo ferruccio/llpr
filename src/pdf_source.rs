@@ -113,19 +113,19 @@ where
     }
 }
 
-pub struct ByteSource<'a> {
+pub struct ByteSliceSource<'a> {
     cursor: Cursor<&'a [u8]>,
 }
 
-impl<'a> ByteSource<'a> {
-    pub fn new(source: &'a [u8]) -> ByteSource<'a> {
-        ByteSource {
+impl<'a> ByteSliceSource<'a> {
+    pub fn new(source: &'a [u8]) -> ByteSliceSource<'a> {
+        ByteSliceSource {
             cursor: Cursor::new(source),
         }
     }
 }
 
-impl<'a> Source for ByteSource<'a> {
+impl<'a> Source for ByteSliceSource<'a> {
     fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error> {
         self.cursor.seek(pos)
     }
@@ -139,25 +139,25 @@ impl<'a> Source for ByteSource<'a> {
     }
 }
 
-impl<'a> Read for ByteSource<'a> {
+impl<'a> Read for ByteSliceSource<'a> {
     fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Error> {
         self.cursor.read(buf)
     }
 }
 
-pub struct VByteSource {
+pub struct ByteSource {
     cursor: Cursor<Vec<u8>>,
 }
 
-impl VByteSource {
-    pub fn new(bytes: Vec<u8>) -> VByteSource {
-        VByteSource {
+impl ByteSource {
+    pub fn new(bytes: Vec<u8>) -> ByteSource {
+        ByteSource {
             cursor: Cursor::new(bytes),
         }
     }
 }
 
-impl Source for VByteSource {
+impl Source for ByteSource {
     fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error> {
         self.cursor.seek(pos)
     }
@@ -171,7 +171,7 @@ impl Source for VByteSource {
     }
 }
 
-impl Read for VByteSource {
+impl Read for ByteSource {
     fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Error> {
         self.cursor.read(buf)
     }

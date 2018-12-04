@@ -209,7 +209,7 @@ fn hex_string(source: &mut Box<Source>) -> Result<PdfToken> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::ByteSource;
+    use pdf_source::ByteSliceSource;
 
     fn next(source: &mut Box<Source>) -> PdfToken {
         next_token(source).unwrap()
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn keywords() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(b"trailer false\nwho_knows "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"trailer false\nwho_knows "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Keyword(PdfKeyword::trailer));
         let tok = next(&mut source);
@@ -228,8 +228,9 @@ mod tests {
 
     #[test]
     fn integers() {
-        let mut source: Box<Source> =
-            Box::new(ByteSource::new(b"0 15 -24\t\t+212 %blah blah blah\n12345 "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(
+            b"0 15 -24\t\t+212 %blah blah blah\n12345 ",
+        ));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Integer(0));
         let tok = next(&mut source);
@@ -244,7 +245,8 @@ mod tests {
 
     #[test]
     fn reals() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(b"0.0 2030.0 3.1415926 -32. .5 "));
+        let mut source: Box<Source> =
+            Box::new(ByteSliceSource::new(b"0.0 2030.0 3.1415926 -32. .5 "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Real(0.0));
         let tok = next(&mut source);
@@ -259,7 +261,7 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(b"/Root /Size "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Root /Size "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Name(PdfName::Root));
         let tok = next(&mut source);
@@ -268,7 +270,7 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(
             b"/Who /What /#57here /W#68#65#6e /And#20How ",
         ));
         let tok = next(&mut source);
@@ -285,7 +287,7 @@ mod tests {
 
     #[test]
     fn strings() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(
             br###"
 (This is a string)
 (Strings may contain newlines
@@ -358,8 +360,9 @@ special characters ( * ! & } ^ % and so on ).)
 
     #[test]
     fn hex_strings() {
-        let mut source: Box<Source> =
-            Box::new(ByteSource::new(b"<><a> <12AbCd> <deadbeef> <CAFEBABE> "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(
+            b"<><a> <12AbCd> <deadbeef> <CAFEBABE> ",
+        ));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::Str(vec![]));
         let tok = next(&mut source);
@@ -374,7 +377,7 @@ special characters ( * ! & } ^ % and so on ).)
 
     #[test]
     fn structures() {
-        let mut source: Box<Source> = Box::new(ByteSource::new(b"<< >> [ ] "));
+        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"<< >> [ ] "));
         let tok = next(&mut source);
         assert_eq!(tok, PdfToken::BeginDictionary);
         let tok = next(&mut source);

@@ -13,4 +13,4 @@ mod pdf_types;
 mod streams;
 
 pub use pdf_document::PdfDocument;
-pub use pdf_source::{ByteSource, PdfSource, StreamSource};
+pub use pdf_source::{ByteSliceSource, PdfSource, StreamSource};

@@ -1,6 +1,6 @@
 use errors::*;
 use next_object::next_object;
-use pdf_source::{Source, VByteSource};
+use pdf_source::{ByteSource, Source};
 use pdf_types::*;
 
 type Result<R> = ::std::result::Result<R, PdfError>;
@@ -14,7 +14,7 @@ impl PageContents {
         // shove a space at the end so we don't get a premature PdfError::EndOfFile
         contents.push(b' ');
         PageContents {
-            source: Box::new(VByteSource::new(contents)),
+            source: Box::new(ByteSource::new(contents)),
         }
     }
 
