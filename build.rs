@@ -14,6 +14,19 @@ fn main() {
     generate("codegen_keywords.rs", "KEYWORDS", "PdfKeyword", keywords);
 }
 
+fn safe(s: String) -> String {
+    let mut d = "".to_owned();
+    for ch in s.chars() {
+        match ch {
+            '*' => d.push_str("star"),
+            '\'' => d.push_str("apos"),
+            '"' => d.push_str("quote"),
+            ch @ _ => d.push(ch),
+        }
+    }
+    d
+}
+
 fn load(filename: &str) -> Vec<String> {
     let mut strings = HashSet::<String>::new();
     strings.insert("Unknown".to_owned());
@@ -36,7 +49,7 @@ fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) 
     writeln!(&mut file, "#[allow(non_camel_case_types)]");
     writeln!(&mut file, "pub enum {} {{", typename);
     for entry in entries.iter() {
-        writeln!(&mut file, "    r#{},", entry);
+        writeln!(&mut file, "    r#{},", safe(entry.to_owned()));
     }
     writeln!(&mut file, "}}\n");
 
@@ -47,7 +60,10 @@ fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) 
     ).unwrap();
     let mut builder = phf_codegen::Map::new();
     for entry in entries.iter() {
-        builder.entry(&entry[..], &format!("{}::r#{}", typename, entry));
+        builder.entry(
+            &entry[..],
+            &format!("{}::r#{}", typename, safe(entry.to_owned())),
+        );
     }
     builder.build(&mut file).unwrap();
     writeln!(&mut file, ";").unwrap();
