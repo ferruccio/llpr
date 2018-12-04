@@ -55,64 +55,6 @@ where
     }
 }
 
-pub struct StreamSource<T>
-where
-    T: Read,
-{
-    source: T,
-    last: Option<char>,
-    next: Option<char>,
-}
-
-impl<T> StreamSource<T>
-where
-    T: Read,
-{
-    pub fn new(source: T) -> StreamSource<T> {
-        StreamSource {
-            source: source,
-            last: None,
-            next: None,
-        }
-    }
-}
-
-impl<T> Source for StreamSource<T>
-where
-    T: Read,
-{
-    fn seek(&mut self, _pos: SeekFrom) -> StdResult<u64, Error> {
-        panic!("internal error - cannot seek on StreamSource");
-    }
-
-    fn getch(&mut self) -> Result<Option<char>> {
-        if let Some(ch) = self.next {
-            self.next = None;
-            self.last = Some(ch);
-            Ok(Some(ch))
-        } else {
-            let ch = readch(&mut self.source)?;
-            self.last = ch;
-            Ok(ch)
-        }
-    }
-
-    fn backup(&mut self) {
-        if let Some(ch) = self.last {
-            self.next = Some(ch);
-        }
-    }
-}
-
-impl<T> Read for StreamSource<T>
-where
-    T: Read,
-{
-    fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Error> {
-        self.source.read(buf)
-    }
-}
-
 pub struct ByteSliceSource<'a> {
     cursor: Cursor<&'a [u8]>,
 }
