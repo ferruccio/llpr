@@ -8,18 +8,19 @@ type Result<T> = ::std::result::Result<T, PdfError>;
 
 pub fn next_object(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
     match next_token(source)? {
-        PdfToken::Keyword(PdfKeyword::null) => Ok(Some(PdfObject::Null)),
-        PdfToken::Keyword(PdfKeyword::r#true) => Ok(Some(PdfObject::Boolean(true))),
-        PdfToken::Keyword(PdfKeyword::r#false) => Ok(Some(PdfObject::Boolean(false))),
-        PdfToken::Keyword(keyword) => Ok(Some(PdfObject::Keyword(keyword))),
-        PdfToken::Integer(i) => Ok(Some(PdfObject::Number(PdfNumber::Integer(i)))),
-        PdfToken::Real(r) => Ok(Some(PdfObject::Number(PdfNumber::Real(r)))),
-        PdfToken::Name(name) => Ok(Some(PdfObject::Name(name))),
-        PdfToken::Symbol(symbol) => Ok(Some(PdfObject::Symbol(symbol))),
-        PdfToken::Str(s) => Ok(Some(PdfObject::String(s))),
-        PdfToken::BeginArray => array(source),
-        PdfToken::BeginDictionary => dictionary(source),
-        PdfToken::EndArray | PdfToken::EndDictionary => Ok(None),
+        Some(PdfToken::Keyword(PdfKeyword::null)) => Ok(Some(PdfObject::Null)),
+        Some(PdfToken::Keyword(PdfKeyword::r#true)) => Ok(Some(PdfObject::Boolean(true))),
+        Some(PdfToken::Keyword(PdfKeyword::r#false)) => Ok(Some(PdfObject::Boolean(false))),
+        Some(PdfToken::Keyword(keyword)) => Ok(Some(PdfObject::Keyword(keyword))),
+        Some(PdfToken::Integer(i)) => Ok(Some(PdfObject::Number(PdfNumber::Integer(i)))),
+        Some(PdfToken::Real(r)) => Ok(Some(PdfObject::Number(PdfNumber::Real(r)))),
+        Some(PdfToken::Name(name)) => Ok(Some(PdfObject::Name(name))),
+        Some(PdfToken::Symbol(symbol)) => Ok(Some(PdfObject::Symbol(symbol))),
+        Some(PdfToken::Str(s)) => Ok(Some(PdfObject::String(s))),
+        Some(PdfToken::BeginArray) => array(source),
+        Some(PdfToken::BeginDictionary) => dictionary(source),
+        Some(PdfToken::EndArray) | Some(PdfToken::EndDictionary) => Ok(None),
+        None => Ok(None),
     }
 }
 

@@ -260,7 +260,11 @@ impl PdfDocument {
         self.seek_reference(reference)?;
         let stream_dict = self.read_prefix(reference)?;
         need_keyword(&mut self.source, PdfKeyword::stream)?;
-        while self.source.getch()? != '\n' {}
+        while match self.source.getch()? {
+            None => return Err(PdfError::EndOfFile),
+            Some('\n') => false,
+            _ => true,
+        } {}
         let pos = self.source.seek(SeekFrom::Current(0))?;
         let stream_dict = self.dereference_dictionary(stream_dict)?;
         let _ = self.source.seek(SeekFrom::Start(pos))?;
@@ -491,6 +495,6 @@ mod tests {
             pc.next_object().unwrap().unwrap(),
             PdfObject::Keyword(PdfKeyword::ET)
         );
-        assert!(pc.next_object().is_err());
+        assert!(pc.next_object().unwrap() == None);
     }
 }

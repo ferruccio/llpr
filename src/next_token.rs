@@ -15,28 +15,32 @@ fn pdf_keyword(keyword: &str) -> PdfKeyword {
     }
 }
 
-pub fn next_token(source: &mut Box<Source>) -> Result<PdfToken> {
+pub fn next_token(source: &mut Box<Source>) -> Result<Option<PdfToken>> {
     let syntax_error = Err(PdfError::InvalidPdf("syntax error"));
     skip_whitespace(source)?;
     match source.getch()? {
-        ch @ 'A'...'Z' | ch @ 'a'...'z' => keyword(source, ch),
-        ch @ '+' | ch @ '-' | ch @ '.' | ch @ '0'...'9' => number(source, ch),
-        '/' => name_or_symbol(source),
-        '[' => Ok(PdfToken::BeginArray),
-        ']' => Ok(PdfToken::EndArray),
-        '(' => string(source),
-        '<' => match source.getch()? {
-            '<' => Ok(PdfToken::BeginDictionary),
-            _ => {
+        Some(ch @ 'A'...'Z') | Some(ch @ 'a'...'z') => keyword(source, ch),
+        Some(ch @ '+') | Some(ch @ '-') | Some(ch @ '.') | Some(ch @ '0'...'9') => {
+            number(source, ch)
+        }
+        Some('/') => name_or_symbol(source),
+        Some('[') => Ok(Some(PdfToken::BeginArray)),
+        Some(']') => Ok(Some(PdfToken::EndArray)),
+        Some('(') => string(source),
+        Some('<') => match source.getch()? {
+            Some('<') => Ok(Some(PdfToken::BeginDictionary)),
+            Some(_) => {
                 source.backup();
                 hex_string(source)
             }
+            None => hex_string(source),
         },
-        '>' => match source.getch()? {
-            '>' => Ok(PdfToken::EndDictionary),
-            _ => syntax_error,
+        Some('>') => match source.getch()? {
+            Some('>') => Ok(Some(PdfToken::EndDictionary)),
+            None | Some(_) => syntax_error,
         },
-        _ => syntax_error,
+        Some(_) => syntax_error,
+        None => Ok(None),
     }
 }
 
@@ -46,15 +50,19 @@ fn skip_whitespace(source: &mut Box<Source>) -> Result<()> {
     loop {
         let ch = source.getch()?;
         if in_comment {
-            if ch == '\n' {
+            if ch == Some('\n') {
                 in_comment = false;
             }
         } else {
-            if ch == '%' {
+            if ch == Some('%') {
                 in_comment = true;
             } else {
-                if !whitespace.contains(&ch) {
-                    source.backup();
+                if let Some(ch) = ch {
+                    if !whitespace.contains(&ch) {
+                        source.backup();
+                        return Ok(());
+                    }
+                } else {
                     return Ok(());
                 }
             }
@@ -62,99 +70,100 @@ fn skip_whitespace(source: &mut Box<Source>) -> Result<()> {
     }
 }
 
-fn keyword(source: &mut Box<Source>, first: char) -> Result<PdfToken> {
+fn keyword(source: &mut Box<Source>, first: char) -> Result<Option<PdfToken>> {
     let mut keyword = first.to_string();
     loop {
         match source.getch()? {
-            ch @ 'A'...'Z' | ch @ 'a'...'z' => keyword.push(ch),
-            _ => {
+            Some(ch @ 'A'...'Z') | Some(ch @ 'a'...'z') => keyword.push(ch),
+            None | Some(_) => {
                 source.backup();
-                return Ok(PdfToken::Keyword(pdf_keyword(&keyword)));
+                return Ok(Some(PdfToken::Keyword(pdf_keyword(&keyword))));
             }
         }
     }
 }
 
-fn number(source: &mut Box<Source>, first: char) -> Result<PdfToken> {
+fn number(source: &mut Box<Source>, first: char) -> Result<Option<PdfToken>> {
     let mut number = first.to_string();
     let mut decimal = first == '.';
     loop {
         match source.getch()? {
-            ch @ '0'...'9' => number.push(ch),
-            '.' => {
+            Some(ch @ '0'...'9') => number.push(ch),
+            Some('.') => {
                 number.push('.');
                 decimal = true;
             }
-            _ => {
+            None | Some(_) => {
                 source.backup();
                 if decimal {
-                    return Ok(PdfToken::Real(number.parse()?));
+                    return Ok(Some(PdfToken::Real(number.parse()?)));
                 } else {
-                    return Ok(PdfToken::Integer(number.parse()?));
+                    return Ok(Some(PdfToken::Integer(number.parse()?)));
                 }
             }
         }
     }
 }
 
-fn nybble(ch: char) -> Result<u8> {
+fn nybble(ch: Option<char>) -> Result<u8> {
     match ch {
-        ch @ '0'...'9' => Ok(ch as u8 - b'0'),
-        ch @ 'A'...'F' => Ok(10 + (ch as u8 - b'A')),
-        ch @ 'a'...'f' => Ok(10 + (ch as u8 - b'a')),
+        Some(ch @ '0'...'9') => Ok(ch as u8 - b'0'),
+        Some(ch @ 'A'...'F') => Ok(10 + (ch as u8 - b'A')),
+        Some(ch @ 'a'...'f') => Ok(10 + (ch as u8 - b'a')),
+        None => Err(PdfError::EndOfFile),
         _ => Err(PdfError::InvalidPdf("invalid hex character")),
     }
 }
 
-fn name_or_symbol(source: &mut Box<Source>) -> Result<PdfToken> {
+fn name_or_symbol(source: &mut Box<Source>) -> Result<Option<PdfToken>> {
     let mut name = "".to_owned();
     loop {
         match source.getch()? {
-            ' ' | '\t' | '\n' | '\r' | '\x0c' => {
+            None | Some(' ') | Some('\t') | Some('\n') | Some('\r') | Some('\x0c') => {
                 source.backup();
                 return match pdf_name(&name) {
-                    Some(name) => Ok(PdfToken::Name(name)),
-                    None => Ok(PdfToken::Symbol(name.as_bytes().to_vec())),
+                    Some(name) => Ok(Some(PdfToken::Name(name))),
+                    None => Ok(Some(PdfToken::Symbol(name.as_bytes().to_vec()))),
                 };
             }
-            '#' => {
+            Some('#') => {
                 let hi = nybble(source.getch()?)?;
                 let lo = nybble(source.getch()?)?;
                 name.push((hi << 4 | lo) as char);
             }
-            ch @ _ => name.push(ch),
+            Some(ch @ _) => name.push(ch),
         }
     }
 }
 
-fn string(source: &mut Box<Source>) -> Result<PdfToken> {
+fn string(source: &mut Box<Source>) -> Result<Option<PdfToken>> {
     let mut nesting = 0;
     let mut string = vec![];
     loop {
         match source.getch()? {
-            '(' => {
+            Some('(') => {
                 string.push(b'(');
                 nesting += 1;
             }
-            ')' => {
+            None | Some(')') => {
                 if nesting == 0 {
-                    return Ok(PdfToken::Str(string));
+                    return Ok(Some(PdfToken::Str(string)));
                 }
                 string.push(b')');
                 nesting -= 1;
             }
-            '\\' => match source.getch()? {
-                'n' => string.push(b'\n'),
-                'r' => string.push(b'\r'),
-                't' => string.push(b'\t'),
-                'b' => string.push(0x08),
-                'f' => string.push(0x0c),
-                '(' => string.push(b'('),
-                ')' => string.push(b')'),
-                ch @ '0'...'7' => string.push(octal_escape(source, ch)?),
-                _ => {}
+            Some('\\') => match source.getch()? {
+                Some('n') => string.push(b'\n'),
+                Some('r') => string.push(b'\r'),
+                Some('t') => string.push(b'\t'),
+                Some('b') => string.push(0x08),
+                Some('f') => string.push(0x0c),
+                Some('(') => string.push(b'('),
+                Some(')') => string.push(b')'),
+                Some(ch @ '0'...'7') => string.push(octal_escape(source, ch)?),
+                None | Some(_) => {}
             },
-            ch @ _ => string.push(ch as u8),
+            Some(ch @ _) => string.push(ch as u8),
         }
     }
 }
@@ -164,7 +173,7 @@ fn octal_escape(source: &mut Box<Source>, first: char) -> Result<u8> {
     let mut digits = 1;
     loop {
         match source.getch()? {
-            ch @ '0'...'7' => {
+            Some(ch @ '0'...'7') => {
                 octal = (octal << 3) | (ch as u8 - b'0');
                 digits += 1;
                 if digits == 3 {
@@ -179,19 +188,19 @@ fn octal_escape(source: &mut Box<Source>, first: char) -> Result<u8> {
     }
 }
 
-fn hex_string(source: &mut Box<Source>) -> Result<PdfToken> {
+fn hex_string(source: &mut Box<Source>) -> Result<Option<PdfToken>> {
     let mut value = 0u8;
     let mut hex = 0u8;
     let mut first = false;
     let mut string = vec![];
     loop {
         match source.getch()? {
-            ' ' | '\t' | '\n' | '\r' | '\x0c' => {}
-            '>' => {
+            Some(' ') | Some('\t') | Some('\n') | Some('\r') | Some('\x0c') => {}
+            Some('>') => {
                 if first {
                     string.push(hex << 4);
                 }
-                return Ok(PdfToken::Str(string));
+                return Ok(Some(PdfToken::Str(string)));
             }
             ch @ _ => {
                 hex = nybble(ch)?;
@@ -212,7 +221,7 @@ mod tests {
     use pdf_source::ByteSliceSource;
 
     fn next(source: &mut Box<Source>) -> PdfToken {
-        next_token(source).unwrap()
+        next_token(source).unwrap().unwrap()
     }
 
     #[test]

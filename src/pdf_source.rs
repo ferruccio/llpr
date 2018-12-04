@@ -6,7 +6,7 @@ type Result<R> = StdResult<R, PdfError>;
 
 pub trait Source: Read {
     fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error>;
-    fn getch(&mut self) -> Result<char>;
+    fn getch(&mut self) -> Result<Option<char>>;
     fn backup(&mut self);
 }
 
@@ -37,7 +37,7 @@ where
         self.source.seek(pos)
     }
 
-    fn getch(&mut self) -> Result<char> {
+    fn getch(&mut self) -> Result<Option<char>> {
         readch(&mut self.source)
     }
 
@@ -85,14 +85,14 @@ where
         panic!("internal error - cannot seek on StreamSource");
     }
 
-    fn getch(&mut self) -> Result<char> {
+    fn getch(&mut self) -> Result<Option<char>> {
         if let Some(ch) = self.next {
             self.next = None;
             self.last = Some(ch);
-            Ok(ch)
+            Ok(Some(ch))
         } else {
             let ch = readch(&mut self.source)?;
-            self.last = Some(ch);
+            self.last = ch;
             Ok(ch)
         }
     }
@@ -130,7 +130,7 @@ impl<'a> Source for ByteSliceSource<'a> {
         self.cursor.seek(pos)
     }
 
-    fn getch(&mut self) -> Result<char> {
+    fn getch(&mut self) -> Result<Option<char>> {
         readch(&mut self.cursor)
     }
 
@@ -162,7 +162,7 @@ impl Source for ByteSource {
         self.cursor.seek(pos)
     }
 
-    fn getch(&mut self) -> Result<char> {
+    fn getch(&mut self) -> Result<Option<char>> {
         readch(&mut self.cursor)
     }
 
@@ -177,10 +177,10 @@ impl Read for ByteSource {
     }
 }
 
-fn readch(source: &mut Read) -> Result<char> {
+fn readch(source: &mut Read) -> Result<Option<char>> {
     let mut buffer = [0];
     match source.read(&mut buffer)? {
-        0 => Err(PdfError::EndOfFile),
-        _ => Ok(buffer[0] as char),
+        0 => Ok(None),
+        _ => Ok(Some(buffer[0] as char)),
     }
 }
