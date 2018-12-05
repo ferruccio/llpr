@@ -3,7 +3,7 @@ extern crate criterion;
 extern crate llpr;
 
 use criterion::Criterion;
-use llpr::{ByteSliceSource, PdfDocument};
+use llpr::*;
 
 fn parse_all_streams(buffer: &'static [u8]) {
     let source = Box::new(ByteSliceSource::new(buffer));
@@ -14,12 +14,11 @@ fn parse_all_streams(buffer: &'static [u8]) {
     }
 }
 
+static TRACEMONKEY_PDF: &'static [u8] = include_bytes!("../testing/tracemonkey.pdf");
+
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("tracemonkey.pdf streams", |b| {
-        b.iter(|| {
-            let pdf = include_bytes!("../testing/tracemonkey.pdf");
-            parse_all_streams(pdf)
-        })
+        b.iter(|| parse_all_streams(TRACEMONKEY_PDF))
     });
 }
 
