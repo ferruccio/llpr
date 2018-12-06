@@ -1,8 +1,4 @@
-#[macro_use]
-extern crate criterion;
-extern crate llpr;
-
-use criterion::Criterion;
+use criterion::{criterion_group, criterion_main, Criterion};
 use llpr::*;
 
 fn parse_all_streams(buffer: &'static [u8]) {

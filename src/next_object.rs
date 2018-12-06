@@ -1,7 +1,7 @@
-use errors::*;
-use next_token::next_token;
-use pdf_source::Source;
-use pdf_types::*;
+use crate::errors::*;
+use crate::next_token::next_token;
+use crate::pdf_source::Source;
+use crate::pdf_types::*;
 use std::collections::HashMap;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
@@ -106,7 +106,7 @@ fn reference(array: &mut Vec<PdfObject>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::ByteSliceSource;
+    use crate::pdf_source::ByteSliceSource;
 
     fn next(source: &mut Box<Source>) -> PdfObject {
         next_object(source).unwrap().unwrap()

@@ -1,4 +1,4 @@
-use errors::*;
+use crate::errors::*;
 use std::io::{Cursor, Error, Read, Seek, SeekFrom};
 
 type StdResult<R, E> = ::std::result::Result<R, E>;

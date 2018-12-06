@@ -1,4 +1,4 @@
-use pdf_types::*;
+use crate::pdf_types::*;
 
 pub trait Access {
     // lookup methods

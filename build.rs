@@ -1,5 +1,3 @@
-extern crate phf_codegen;
-
 use std::collections::hash_set::HashSet;
 use std::env;
 use std::fs::File;

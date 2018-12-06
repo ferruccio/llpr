@@ -1,7 +1,3 @@
-extern crate inflate;
-extern crate phf;
-extern crate quick_error;
-
 mod dictionary;
 mod errors;
 mod next_object;
@@ -12,5 +8,5 @@ mod pdf_source;
 mod pdf_types;
 mod streams;
 
-pub use pdf_document::PdfDocument;
-pub use pdf_source::{ByteSliceSource, ByteSource, PdfSource, Source};
+pub use crate::pdf_document::PdfDocument;
+pub use crate::pdf_source::{ByteSliceSource, ByteSource, PdfSource, Source};

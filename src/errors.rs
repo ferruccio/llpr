@@ -1,4 +1,4 @@
-use pdf_types::*;
+use crate::pdf_types::*;
 use quick_error::quick_error;
 
 quick_error! {

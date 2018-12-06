@@ -1,6 +1,6 @@
-use errors::*;
+use crate::errors::*;
 use inflate::inflate_bytes_zlib;
-use pdf_types::*;
+use crate::pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 

@@ -1,6 +1,6 @@
-use errors::*;
-use pdf_source::Source;
-use pdf_types::*;
+use crate::errors::*;
+use crate::pdf_source::Source;
+use crate::pdf_types::*;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -219,7 +219,7 @@ fn hex_string(source: &mut Box<Source>) -> Result<Option<PdfToken>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::ByteSliceSource;
+    use crate::pdf_source::ByteSliceSource;
 
     fn next(source: &mut Box<Source>) -> PdfToken {
         next_token(source).unwrap().unwrap()

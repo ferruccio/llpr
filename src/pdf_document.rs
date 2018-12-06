@@ -1,11 +1,11 @@
-use dictionary::Access;
-use errors::*;
-use next_object::{need_dictionary, need_keyword, need_u32, next_object};
-use page_contents::PageContents;
-use pdf_source::Source;
-use pdf_types::*;
+use crate::dictionary::Access;
+use crate::errors::*;
+use crate::next_object::{need_dictionary, need_keyword, need_u32, next_object};
+use crate::page_contents::PageContents;
+use crate::pdf_source::Source;
+use crate::pdf_types::*;
 use std::io::{Read, SeekFrom};
-use streams::decode_stream;
+use crate::streams::decode_stream;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -312,7 +312,7 @@ fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdf_source::{ByteSliceSource, PdfSource};
+    use crate::pdf_source::{ByteSliceSource, PdfSource};
     use std::fs::File;
 
     fn open_test_file(name: &str) -> Box<PdfSource<File>> {

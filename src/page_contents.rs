@@ -1,7 +1,7 @@
-use errors::*;
-use next_object::next_object;
-use pdf_source::{ByteSource, Source};
-use pdf_types::*;
+use crate::errors::*;
+use crate::next_object::next_object;
+use crate::pdf_source::{ByteSource, Source};
+use crate::pdf_types::*;
 
 type Result<R> = ::std::result::Result<R, PdfError>;
 
