@@ -6,12 +6,16 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-fn main() {
-    let names = load("names.txt");
-    generate("codegen_names.rs", "NAMES", "PdfName", names);
+type Result<T> = ::std::result::Result<T, std::io::Error>;
 
-    let keywords = load("keywords.txt");
-    generate("codegen_keywords.rs", "KEYWORDS", "PdfKeyword", keywords);
+fn main() -> Result<()> {
+    let names = load("names.txt")?;
+    generate("codegen_names.rs", "NAMES", "PdfName", names)?;
+
+    let keywords = load("keywords.txt")?;
+    generate("codegen_keywords.rs", "KEYWORDS", "PdfKeyword", keywords)?;
+
+    Ok(())
 }
 
 fn safe(s: String) -> String {
@@ -27,10 +31,10 @@ fn safe(s: String) -> String {
     d
 }
 
-fn load(filename: &str) -> Vec<String> {
+fn load(filename: &str) -> Result<Vec<String>> {
     let mut strings = HashSet::<String>::new();
     strings.insert("Unknown".to_owned());
-    let of = File::open(filename).unwrap();
+    let of = File::open(filename)?;
     let file = BufReader::new(&of);
     for (_, line) in file.lines().enumerate() {
         let l = line.unwrap().trim().to_owned();
@@ -38,26 +42,26 @@ fn load(filename: &str) -> Vec<String> {
             strings.insert(l.to_owned());
         }
     }
-    strings.into_iter().collect()
+    Ok(strings.into_iter().collect())
 }
 
-fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) {
+fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) -> Result<()> {
     let path = Path::new(&env::var("OUT_DIR").unwrap()).join(filename);
     let mut file = BufWriter::new(File::create(&path).unwrap());
 
-    writeln!(&mut file, "#[derive(Debug, Clone, PartialEq, Eq, Hash)]");
-    writeln!(&mut file, "#[allow(non_camel_case_types)]");
-    writeln!(&mut file, "pub enum {} {{", typename);
+    writeln!(&mut file, "#[derive(Debug, Clone, PartialEq, Eq, Hash)]")?;
+    writeln!(&mut file, "#[allow(non_camel_case_types)]")?;
+    writeln!(&mut file, "pub enum {} {{", typename)?;
     for entry in entries.iter() {
-        writeln!(&mut file, "    r#{},", safe(entry.to_owned()));
+        writeln!(&mut file, "    r#{},", safe(entry.to_owned()))?;
     }
-    writeln!(&mut file, "}}\n");
+    writeln!(&mut file, "}}\n")?;
 
     write!(
         &mut file,
         "pub static {}: phf::Map<&'static str, {}> = ",
         target, typename
-    ).unwrap();
+    )?;
     let mut builder = phf_codegen::Map::new();
     for entry in entries.iter() {
         builder.entry(
@@ -66,5 +70,6 @@ fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) 
         );
     }
     builder.build(&mut file).unwrap();
-    writeln!(&mut file, ";").unwrap();
+    writeln!(&mut file, ";")?;
+    Ok(())
 }
