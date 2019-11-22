@@ -119,7 +119,7 @@ impl Read for ByteSource {
     }
 }
 
-fn readch(source: &mut Read) -> Result<Option<char>> {
+fn readch(source: &mut dyn Read) -> Result<Option<char>> {
     let mut buffer = [0];
     match source.read(&mut buffer)? {
         0 => Ok(None),

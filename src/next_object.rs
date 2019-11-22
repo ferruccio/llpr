@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
-pub fn next_object(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
+pub fn next_object(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
     match next_token(source)? {
         Some(PdfToken::Keyword(PdfKeyword::null)) => Ok(Some(PdfObject::Null)),
         Some(PdfToken::Keyword(PdfKeyword::r#true)) => Ok(Some(PdfObject::Boolean(true))),
@@ -24,28 +24,28 @@ pub fn next_object(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
     }
 }
 
-pub fn need_keyword(source: &mut Box<Source>, keyword: PdfKeyword) -> Result<()> {
+pub fn need_keyword(source: &mut Box<dyn Source>, keyword: PdfKeyword) -> Result<()> {
     match next_object(source)? {
         Some(PdfObject::Keyword(ref k)) if k == &keyword => Ok(()),
         _ => Err(PdfError::KeywordExpected(keyword)),
     }
 }
 
-pub fn need_u32(source: &mut Box<Source>, value: u32) -> Result<()> {
+pub fn need_u32(source: &mut Box<dyn Source>, value: u32) -> Result<()> {
     match next_object(source)? {
         Some(PdfObject::Number(PdfNumber::Integer(i))) if i == value as i64 => Ok(()),
         _ => Err(PdfError::InvalidReferenceTarget),
     }
 }
 
-pub fn need_dictionary(source: &mut Box<Source>) -> Result<Dictionary> {
+pub fn need_dictionary(source: &mut Box<dyn Source>) -> Result<Dictionary> {
     match next_object(source)? {
         Some(PdfObject::Dictionary(d)) => Ok(d),
         _ => Err(PdfError::InvalidPdf("dictionary expected")),
     }
 }
 
-fn array(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
+fn array(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
     let mut array = Box::new(vec![]);
     loop {
         match next_object(source)? {
@@ -56,7 +56,7 @@ fn array(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
     }
 }
 
-fn dictionary(source: &mut Box<Source>) -> Result<Option<PdfObject>> {
+fn dictionary(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
     let mut array = vec![];
     loop {
         match next_object(source)? {
@@ -108,23 +108,23 @@ mod tests {
     use super::*;
     use crate::pdf_source::ByteSliceSource;
 
-    fn next(source: &mut Box<Source>) -> PdfObject {
+    fn next(source: &mut Box<dyn Source>) -> PdfObject {
         next_object(source).unwrap().unwrap()
     }
 
     #[test]
     fn end_of_stream() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b""));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b""));
         let obj = next_object(&mut source).unwrap();
         assert_eq!(obj, None);
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"\t \n"));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b"\t \n"));
         let obj = next_object(&mut source).unwrap();
         assert_eq!(obj, None);
     }
 
     #[test]
     fn keywords() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b" trailer\n\txref"));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b" trailer\n\txref"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Keyword(PdfKeyword::trailer));
         let n = next(&mut source);
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn value_keywords() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"null true false"));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b"null true false"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Null);
         let n = next(&mut source);
@@ -144,7 +144,8 @@ mod tests {
 
     #[test]
     fn numbers() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"0 0.0 1 1.0 -10.34 10000.5"));
+        let mut source: Box<dyn Source> =
+            Box::new(ByteSliceSource::new(b"0 0.0 1 1.0 -10.34 10000.5"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Number(PdfNumber::Integer(0)));
         let n = next(&mut source);
@@ -161,7 +162,7 @@ mod tests {
 
     #[test]
     fn strings() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(
             b"() (string) (Another \t (string)) <> <a1b2> <a1b>",
         ));
         let n = next(&mut source);
@@ -185,7 +186,7 @@ mod tests {
 
     #[test]
     fn names() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Root /Size"));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b"/Root /Size"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Name(PdfName::Root));
         let n = next(&mut source);
@@ -194,7 +195,7 @@ mod tests {
 
     #[test]
     fn symbols() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"/Who /What"));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b"/Who /What"));
         let n = next(&mut source);
         assert_eq!(n, PdfObject::Symbol("Who".as_bytes().to_vec()));
         let n = next(&mut source);
@@ -203,7 +204,8 @@ mod tests {
 
     #[test]
     fn array() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"[0 null [(string)] 1.0]"));
+        let mut source: Box<dyn Source> =
+            Box::new(ByteSliceSource::new(b"[0 null [(string)] 1.0]"));
         let n = next(&mut source);
         assert_eq!(
             n,
@@ -220,7 +222,7 @@ mod tests {
 
     #[test]
     fn array_of_references() {
-        let mut source: Box<Source> = Box::new(ByteSliceSource::new(b"[0 1 R 2 3 R 4 5 R]"));
+        let mut source: Box<dyn Source> = Box::new(ByteSliceSource::new(b"[0 1 R 2 3 R 4 5 R]"));
         let a = next(&mut source);
         assert_eq!(
             a,
@@ -234,7 +236,7 @@ mod tests {
 
     #[test]
     fn dictionary() {
-        let mut source1: Box<Source> = Box::new(ByteSliceSource::new(
+        let mut source1: Box<dyn Source> = Box::new(ByteSliceSource::new(
             br##"<<
                 /Root 10 0 R
                 /Size 35
@@ -247,7 +249,7 @@ mod tests {
             >>"##,
         ));
         let n1 = next(&mut source1);
-        let mut source2: Box<Source> = Box::new(ByteSliceSource::new(
+        let mut source2: Box<dyn Source> = Box::new(ByteSliceSource::new(
             br##"<<
                 /Root    10  0   R
                 /Size   35

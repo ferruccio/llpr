@@ -6,7 +6,7 @@ use crate::pdf_types::*;
 type Result<R> = ::std::result::Result<R, PdfError>;
 
 pub struct PageContents {
-    source: Box<Source>,
+    source: Box<dyn Source>,
 }
 
 impl PageContents {

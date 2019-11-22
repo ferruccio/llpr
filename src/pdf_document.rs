@@ -4,8 +4,8 @@ use crate::next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use crate::page_contents::PageContents;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
-use std::io::{Read, SeekFrom};
 use crate::streams::decode_stream;
+use std::io::{Read, SeekFrom};
 
 type Result<T> = ::std::result::Result<T, PdfError>;
 
@@ -18,13 +18,13 @@ pub struct XRefEntry {
 }
 
 pub struct PdfDocument {
-    source: Box<Source>,
+    source: Box<dyn Source>,
     xref: Vec<XRefEntry>,
     pages: Vec<Dictionary>,
 }
 
 impl PdfDocument {
-    pub fn new(mut source: Box<Source>) -> Result<PdfDocument> {
+    pub fn new(mut source: Box<dyn Source>) -> Result<PdfDocument> {
         PdfDocument::validate_pdf(&mut source)?;
         let (position, buffer) = PdfDocument::read_tail(&mut source)?;
         let trailer_position = find_trailer(position, &buffer)?;
@@ -72,7 +72,7 @@ impl PdfDocument {
 }
 
 impl PdfDocument {
-    fn validate_pdf(source: &mut Box<Source>) -> Result<()> {
+    fn validate_pdf(source: &mut Box<dyn Source>) -> Result<()> {
         source.seek(SeekFrom::Start(0))?;
         let expected_header = "%PDF-1.";
         let mut buffer = [0; 7];
@@ -83,7 +83,7 @@ impl PdfDocument {
         Ok(())
     }
 
-    fn read_tail(source: &mut Box<Source>) -> Result<(u64, Vec<u8>)> {
+    fn read_tail(source: &mut Box<dyn Source>) -> Result<(u64, Vec<u8>)> {
         const BUFFER_SIZE: usize = 8 * 1024;
         let filesize = source.seek(SeekFrom::End(0))? as usize;
         let position = if filesize < BUFFER_SIZE {
@@ -96,7 +96,7 @@ impl PdfDocument {
         Ok((position, buffer))
     }
 
-    fn read_trailer(source: &mut Box<Source>) -> Result<(Dictionary, u64)> {
+    fn read_trailer(source: &mut Box<dyn Source>) -> Result<(Dictionary, u64)> {
         if let Some(PdfObject::Dictionary(trailer_dict)) = next_object(source)? {
             need_keyword(source, PdfKeyword::startxref)?;
             if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = next_object(source)? {
@@ -240,7 +240,8 @@ impl PdfDocument {
                     .map(|(k, v)| match k {
                         PdfName::Parent | PdfName::Contents | PdfName::Resources => (k, v),
                         _ => (k, self.dereference(v).unwrap_or(PdfObject::Null)),
-                    }).collect();
+                    })
+                    .collect();
                 Ok(PdfObject::Dictionary(Box::new(d)))
             }
             obj @ _ => Ok(obj),
