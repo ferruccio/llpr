@@ -160,7 +160,7 @@ impl PdfDocument {
         }
     }
 
-    fn read_pages(&mut self, pages_node: &mut Dictionary) -> Result<(Vec<Dictionary>)> {
+    fn read_pages(&mut self, pages_node: &mut Dictionary) -> Result<Vec<Dictionary>> {
         let mut pages = vec![];
         let kids = match pages_node.get_array(PdfName::Kids) {
             Some(a) => a,
