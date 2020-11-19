@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 quick-error = "1.2.2"
 phf = "0.7.23"
-inflate = "0.4.3"
+inflate = "0.4.5"
 
 [build-dependencies]
 phf_codegen = "0.7.23"
@@ -18,4 +18,4 @@ name = "benchmarks"
 harness = false
 
 [dev-dependencies]
-criterion = "0.2.5"
+criterion = "0.3.3"
