@@ -1,48 +1,38 @@
 use crate::pdf_types::*;
-use quick_error::quick_error;
+use thiserror::Error;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum PdfError {
-        DecompressionError(detail: String) {
-            description("decompression error")
-            display("decompression error: {}", detail)
-        }
-        InternalError(detail: &'static str) {
-            description("internal error")
-            display("internal error: {}", detail)
-        }
-        InvalidPdf(detail: &'static str) {
-            description("invalid pdf file")
-            display("invalid pdf file: {}", detail)
-        }
-        KeywordExpected(keyword: PdfKeyword) {
-            description("pdf keyword expected")
-            display("pdf keyword expected: {:?}", keyword)
-        }
-        InvalidReference {
-            description("reference not found")
-        }
-        InvalidReferenceTarget{
-            description("target does not match reference")
-        }
-        InvalidPageNumber{
-            description("invalid page number")
-        }
-        EndOfFile {
-            description("unexpected end of file")
-        }
-        IoError(err: std::io::Error) {
-            description(err.description())
-            from()
-        }
-        ParseIntError(err: std::num::ParseIntError) {
-            description(err.description())
-            from()
-        }
-        ParseFloatError(err: std::num::ParseFloatError) {
-            description(err.description())
-            from()
-        }
-    }
+#[derive(Error, Debug)]
+pub enum PdfError {
+    #[error("decompression error: {0:?}")]
+    DecompressionError (String),
+
+    #[error("internal error: {0:?}")]
+    InternalError (&'static str),
+
+    #[error("invalid pdf file: {0:?}")]
+    InvalidPdf (&'static str),
+
+    #[error("pdf keyword expected: {0:?}")]
+    KeywordExpected (PdfKeyword),
+
+    #[error("reference not found")]
+    InvalidReference,
+
+    #[error("target does not match reference")]
+    InvalidReferenceTarget,
+
+    #[error("invalid page number")]
+    InvalidPageNumber,
+
+    #[error("unexpected end of file")]
+    EndOfFile,
+
+    #[error("I/O error")]
+    IoError(#[from] std::io::Error),
+
+    #[error("failed to parse int")]
+    ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error("failed to parse float")]
+    ParseFloatError(#[from] std::num::ParseFloatError),
 }

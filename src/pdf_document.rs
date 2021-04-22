@@ -1,5 +1,5 @@
 use crate::dictionary::Access;
-use crate::errors::*;
+use crate::errors::PdfError;
 use crate::next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use crate::page_contents::PageContents;
 use crate::pdf_source::Source;
@@ -7,7 +7,7 @@ use crate::pdf_types::*;
 use crate::streams::decode_stream;
 use std::io::{Read, SeekFrom};
 
-type Result<T> = ::std::result::Result<T, PdfError>;
+type Result<T> = std::result::Result<T, PdfError>;
 
 const FREE_GEN: u16 = 0xffff;
 

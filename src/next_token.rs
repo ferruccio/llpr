@@ -1,8 +1,8 @@
-use crate::errors::*;
+use crate::errors::PdfError;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
 
-type Result<T> = ::std::result::Result<T, PdfError>;
+type Result<T> = std::result::Result<T, PdfError>;
 
 fn pdf_name(name: &str) -> Option<PdfName> {
     NAMES.get(name).cloned()

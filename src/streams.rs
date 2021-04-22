@@ -1,8 +1,8 @@
-use crate::errors::*;
+use crate::errors::PdfError;
 use inflate::inflate_bytes_zlib;
 use crate::pdf_types::*;
 
-type Result<T> = ::std::result::Result<T, PdfError>;
+pub type Result<T> = std::result::Result<T, PdfError>;
 
 struct Filter {
     name: PdfName,
