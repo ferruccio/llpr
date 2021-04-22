@@ -67,7 +67,6 @@ fn generate(filename: &str, target: &str, typename: &str, entries: Vec<String>) 
             &format!("{}::r#{}", typename, safe(entry.to_owned())),
         );
     }
-    builder.build(&mut file).unwrap();
-    writeln!(&mut file, ";")?;
+    writeln!(&mut file, "{};", builder.build())?;
     Ok(())
 }

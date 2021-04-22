@@ -6,16 +6,16 @@ build = "build.rs"
 edition = "2018"
 
 [dependencies]
-phf = "0.7.23"
+phf = "0.8.0"
 inflate = "0.4.5"
 thiserror = "1.0.24"
 
 [build-dependencies]
-phf_codegen = "0.7.23"
+phf_codegen = "0.8.0"
 
 [[bench]]
 name = "benchmarks"
 harness = false
 
 [dev-dependencies]
-criterion = "0.3.3"
+criterion = "0.3.4"
