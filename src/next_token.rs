@@ -1,8 +1,6 @@
-use crate::errors::PdfError;
+use crate::PdfError;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
-
-type Result<T> = std::result::Result<T, PdfError>;
 
 fn pdf_name(name: &str) -> Option<PdfName> {
     NAMES.get(name).cloned()
@@ -15,7 +13,7 @@ fn pdf_keyword(keyword: &str) -> PdfKeyword {
     }
 }
 
-pub fn next_token(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
+pub fn next_token(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfToken>> {
     let syntax_error = Err(PdfError::InvalidPdf("syntax error"));
     skip_whitespace(source)?;
     match source.getch()? {
@@ -44,7 +42,7 @@ pub fn next_token(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
     }
 }
 
-fn skip_whitespace(source: &mut Box<dyn Source>) -> Result<()> {
+fn skip_whitespace(source: &mut Box<dyn Source>) -> crate::Result<()> {
     let whitespace = [' ', '\t', '\n', '\r', '\x0c'];
     let mut in_comment = false;
     loop {
@@ -70,7 +68,7 @@ fn skip_whitespace(source: &mut Box<dyn Source>) -> Result<()> {
     }
 }
 
-fn keyword(source: &mut Box<dyn Source>, first: char) -> Result<Option<PdfToken>> {
+fn keyword(source: &mut Box<dyn Source>, first: char) -> crate::Result<Option<PdfToken>> {
     let mut keyword = first.to_string();
     loop {
         match source.getch()? {
@@ -84,7 +82,7 @@ fn keyword(source: &mut Box<dyn Source>, first: char) -> Result<Option<PdfToken>
     }
 }
 
-fn number(source: &mut Box<dyn Source>, first: char) -> Result<Option<PdfToken>> {
+fn number(source: &mut Box<dyn Source>, first: char) -> crate::Result<Option<PdfToken>> {
     let mut number = first.to_string();
     let mut decimal = first == '.';
     loop {
@@ -106,7 +104,7 @@ fn number(source: &mut Box<dyn Source>, first: char) -> Result<Option<PdfToken>>
     }
 }
 
-fn nybble(ch: Option<char>) -> Result<u8> {
+fn nybble(ch: Option<char>) -> crate::Result<u8> {
     match ch {
         Some(ch @ '0'..='9') => Ok(ch as u8 - b'0'),
         Some(ch @ 'A'..='F') => Ok(10 + (ch as u8 - b'A')),
@@ -116,7 +114,7 @@ fn nybble(ch: Option<char>) -> Result<u8> {
     }
 }
 
-fn name_or_symbol(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
+fn name_or_symbol(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfToken>> {
     let mut name = "".to_owned();
     loop {
         match source.getch()? {
@@ -137,7 +135,7 @@ fn name_or_symbol(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
     }
 }
 
-fn string(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
+fn string(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfToken>> {
     let mut nesting = 0;
     let mut string = vec![];
     loop {
@@ -169,7 +167,7 @@ fn string(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
     }
 }
 
-fn octal_escape(source: &mut Box<dyn Source>, first: char) -> Result<u8> {
+fn octal_escape(source: &mut Box<dyn Source>, first: char) -> crate::Result<u8> {
     let mut octal = first as u8 - b'0';
     let mut digits = 1;
     loop {
@@ -189,7 +187,7 @@ fn octal_escape(source: &mut Box<dyn Source>, first: char) -> Result<u8> {
     }
 }
 
-fn hex_string(source: &mut Box<dyn Source>) -> Result<Option<PdfToken>> {
+fn hex_string(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfToken>> {
     let mut value = 0u8;
     let mut hex = 0u8;
     let mut first = false;

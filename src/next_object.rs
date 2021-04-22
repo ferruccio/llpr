@@ -1,12 +1,11 @@
-use crate::errors::*;
+use std::collections::HashMap;
+
+use crate::PdfError;
 use crate::next_token::next_token;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
-use std::collections::HashMap;
 
-type Result<T> = ::std::result::Result<T, PdfError>;
-
-pub fn next_object(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
+pub fn next_object(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfObject>> {
     match next_token(source)? {
         Some(PdfToken::Keyword(PdfKeyword::null)) => Ok(Some(PdfObject::Null)),
         Some(PdfToken::Keyword(PdfKeyword::r#true)) => Ok(Some(PdfObject::Boolean(true))),
@@ -24,28 +23,28 @@ pub fn next_object(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
     }
 }
 
-pub fn need_keyword(source: &mut Box<dyn Source>, keyword: PdfKeyword) -> Result<()> {
+pub fn need_keyword(source: &mut Box<dyn Source>, keyword: PdfKeyword) -> crate::Result<()> {
     match next_object(source)? {
         Some(PdfObject::Keyword(ref k)) if k == &keyword => Ok(()),
         _ => Err(PdfError::KeywordExpected(keyword)),
     }
 }
 
-pub fn need_u32(source: &mut Box<dyn Source>, value: u32) -> Result<()> {
+pub fn need_u32(source: &mut Box<dyn Source>, value: u32) -> crate::Result<()> {
     match next_object(source)? {
         Some(PdfObject::Number(PdfNumber::Integer(i))) if i == value as i64 => Ok(()),
         _ => Err(PdfError::InvalidReferenceTarget),
     }
 }
 
-pub fn need_dictionary(source: &mut Box<dyn Source>) -> Result<Dictionary> {
+pub fn need_dictionary(source: &mut Box<dyn Source>) -> crate::Result<Dictionary> {
     match next_object(source)? {
         Some(PdfObject::Dictionary(d)) => Ok(d),
         _ => Err(PdfError::InvalidPdf("dictionary expected")),
     }
 }
 
-fn array(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
+fn array(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfObject>> {
     let mut array = Box::new(vec![]);
     loop {
         match next_object(source)? {
@@ -56,7 +55,7 @@ fn array(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
     }
 }
 
-fn dictionary(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
+fn dictionary(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfObject>> {
     let mut array = vec![];
     loop {
         match next_object(source)? {
@@ -84,7 +83,7 @@ fn dictionary(source: &mut Box<dyn Source>) -> Result<Option<PdfObject>> {
     }
 }
 
-fn reference(array: &mut Vec<PdfObject>) -> Result<()> {
+fn reference(array: &mut Vec<PdfObject>) -> crate::Result<()> {
     if array.len() < 2 {
         Err(PdfError::InvalidPdf("not enough arguments for R"))
     } else {

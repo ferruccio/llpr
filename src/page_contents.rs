@@ -1,9 +1,6 @@
-use crate::errors::*;
 use crate::next_object::next_object;
 use crate::pdf_source::{ByteSource, Source};
 use crate::pdf_types::*;
-
-type Result<R> = ::std::result::Result<R, PdfError>;
 
 pub struct PageContents {
     source: Box<dyn Source>,
@@ -16,7 +13,7 @@ impl PageContents {
         }
     }
 
-    pub fn next_object(&mut self) -> Result<Option<PdfObject>> {
+    pub fn next_object(&mut self) -> crate::Result<Option<PdfObject>> {
         next_object(&mut self.source)
     }
 }

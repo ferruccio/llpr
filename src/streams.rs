@@ -1,15 +1,14 @@
-use crate::errors::PdfError;
-use inflate::inflate_bytes_zlib;
+use crate::PdfError;
 use crate::pdf_types::*;
 
-pub type Result<T> = std::result::Result<T, PdfError>;
+use inflate::inflate_bytes_zlib;
 
 struct Filter {
     name: PdfName,
     _decode_parms: Option<Dictionary>,
 }
 
-pub fn decode_stream(mut stream: Vec<u8>, stream_dict: Dictionary) -> Result<Vec<u8>> {
+pub fn decode_stream(mut stream: Vec<u8>, stream_dict: Dictionary) -> crate::Result<Vec<u8>> {
     let filters = filters(stream_dict)?;
     for filter in filters.iter() {
         match filter.name {
@@ -59,7 +58,7 @@ pub fn decode_stream(mut stream: Vec<u8>, stream_dict: Dictionary) -> Result<Vec
     Ok(stream)
 }
 
-fn filters(mut stream_dict: Dictionary) -> Result<Vec<Filter>> {
+fn filters(mut stream_dict: Dictionary) -> crate::Result<Vec<Filter>> {
     match (
         stream_dict.remove(&PdfName::Filter),
         stream_dict.remove(&PdfName::DecodeParms),
@@ -73,7 +72,7 @@ fn filters(mut stream_dict: Dictionary) -> Result<Vec<Filter>> {
             _decode_parms: Some(dp),
         }]),
         (Some(PdfObject::Array(names)), None) => {
-            fn name_to_filter(name: &PdfObject) -> Result<Filter> {
+            fn name_to_filter(name: &PdfObject) -> crate::Result<Filter> {
                 match name {
                     PdfObject::Name(name) => Ok(Filter {
                         name: name.clone(),
@@ -86,7 +85,7 @@ fn filters(mut stream_dict: Dictionary) -> Result<Vec<Filter>> {
             names.iter().map(name_to_filter).collect()
         }
         (Some(PdfObject::Array(names)), Some(PdfObject::Array(dps))) => {
-            fn filter(item: (&PdfObject, &PdfObject)) -> Result<Filter> {
+            fn filter(item: (&PdfObject, &PdfObject)) -> crate::Result<Filter> {
                 match item {
                     (PdfObject::Name(name), PdfObject::Dictionary(dp)) => Ok(Filter {
                         name: name.clone(),

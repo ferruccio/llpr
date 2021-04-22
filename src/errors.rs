@@ -1,5 +1,6 @@
-use crate::pdf_types::*;
 use thiserror::Error;
+
+use crate::pdf_types::*;
 
 #[derive(Error, Debug)]
 pub enum PdfError {

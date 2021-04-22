@@ -1,12 +1,10 @@
-use crate::errors::*;
 use std::io::{Cursor, Error, Read, Seek, SeekFrom};
 
 type StdResult<R, E> = ::std::result::Result<R, E>;
-type Result<R> = StdResult<R, PdfError>;
 
 pub trait Source: Read {
     fn seek(&mut self, pos: SeekFrom) -> StdResult<u64, Error>;
-    fn getch(&mut self) -> Result<Option<char>>;
+    fn getch(&mut self) -> crate::Result<Option<char>>;
     fn backup(&mut self);
 }
 
@@ -37,7 +35,7 @@ where
         self.source.seek(pos)
     }
 
-    fn getch(&mut self) -> Result<Option<char>> {
+    fn getch(&mut self) -> crate::Result<Option<char>> {
         readch(&mut self.source)
     }
 
@@ -72,7 +70,7 @@ impl<'a> Source for ByteSliceSource<'a> {
         self.cursor.seek(pos)
     }
 
-    fn getch(&mut self) -> Result<Option<char>> {
+    fn getch(&mut self) -> crate::Result<Option<char>> {
         readch(&mut self.cursor)
     }
 
@@ -104,7 +102,7 @@ impl Source for ByteSource {
         self.cursor.seek(pos)
     }
 
-    fn getch(&mut self) -> Result<Option<char>> {
+    fn getch(&mut self) -> crate::Result<Option<char>> {
         readch(&mut self.cursor)
     }
 
@@ -119,7 +117,7 @@ impl Read for ByteSource {
     }
 }
 
-fn readch(source: &mut dyn Read) -> Result<Option<char>> {
+fn readch(source: &mut dyn Read) -> crate::Result<Option<char>> {
     let mut buffer = [0];
     match source.read(&mut buffer)? {
         0 => Ok(None),

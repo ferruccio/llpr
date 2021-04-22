@@ -1,13 +1,12 @@
+use std::io::{Read, SeekFrom};
+
+use crate::PdfError;
 use crate::dictionary::Access;
-use crate::errors::PdfError;
 use crate::next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use crate::page_contents::PageContents;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
 use crate::streams::decode_stream;
-use std::io::{Read, SeekFrom};
-
-type Result<T> = std::result::Result<T, PdfError>;
 
 const FREE_GEN: u16 = 0xffff;
 
@@ -24,7 +23,7 @@ pub struct PdfDocument {
 }
 
 impl PdfDocument {
-    pub fn new(mut source: Box<dyn Source>) -> Result<PdfDocument> {
+    pub fn new(mut source: Box<dyn Source>) -> crate::Result<PdfDocument> {
         PdfDocument::validate_pdf(&mut source)?;
         let (position, buffer) = PdfDocument::read_tail(&mut source)?;
         let trailer_position = find_trailer(position, &buffer)?;
@@ -61,7 +60,7 @@ impl PdfDocument {
         self.pages.len() as u32
     }
 
-    pub fn page_contents(&mut self, pageno: u32) -> Result<PageContents> {
+    pub fn page_contents(&mut self, pageno: u32) -> crate::Result<PageContents> {
         if pageno < self.pages.len() as u32 {
             let page_dict = self.pages[pageno as usize].clone();
             Ok(PageContents::new(self.contents(&page_dict)?))
@@ -72,7 +71,7 @@ impl PdfDocument {
 }
 
 impl PdfDocument {
-    fn validate_pdf(source: &mut Box<dyn Source>) -> Result<()> {
+    fn validate_pdf(source: &mut Box<dyn Source>) -> crate::Result<()> {
         source.seek(SeekFrom::Start(0))?;
         let expected_header = "%PDF-1.";
         let mut buffer = [0; 7];
@@ -83,7 +82,7 @@ impl PdfDocument {
         Ok(())
     }
 
-    fn read_tail(source: &mut Box<dyn Source>) -> Result<(u64, Vec<u8>)> {
+    fn read_tail(source: &mut Box<dyn Source>) -> crate::Result<(u64, Vec<u8>)> {
         const BUFFER_SIZE: usize = 8 * 1024;
         let filesize = source.seek(SeekFrom::End(0))? as usize;
         let position = if filesize < BUFFER_SIZE {
@@ -96,7 +95,7 @@ impl PdfDocument {
         Ok((position, buffer))
     }
 
-    fn read_trailer(source: &mut Box<dyn Source>) -> Result<(Dictionary, u64)> {
+    fn read_trailer(source: &mut Box<dyn Source>) -> crate::Result<(Dictionary, u64)> {
         if let Some(PdfObject::Dictionary(trailer_dict)) = next_object(source)? {
             need_keyword(source, PdfKeyword::startxref)?;
             if let Some(PdfObject::Number(PdfNumber::Integer(addr))) = next_object(source)? {
@@ -106,7 +105,7 @@ impl PdfDocument {
         Err(PdfError::InvalidPdf("invalid pdf trailer"))
     }
 
-    fn read_xref(&mut self, size: u32) -> Result<()> {
+    fn read_xref(&mut self, size: u32) -> crate::Result<()> {
         self.xref.resize(
             size as usize,
             XRefEntry {
@@ -134,7 +133,7 @@ impl PdfDocument {
         }
     }
 
-    fn read_xref_entry(&mut self) -> Result<XRefEntry> {
+    fn read_xref_entry(&mut self) -> crate::Result<XRefEntry> {
         let position = next_object(&mut self.source)?;
         let gen = next_object(&mut self.source)?;
         let flag = next_object(&mut self.source)?;
@@ -160,7 +159,7 @@ impl PdfDocument {
         }
     }
 
-    fn read_pages(&mut self, pages_node: &mut Dictionary) -> Result<Vec<Dictionary>> {
+    fn read_pages(&mut self, pages_node: &mut Dictionary) -> crate::Result<Vec<Dictionary>> {
         let mut pages = vec![];
         let kids = match pages_node.get_array(PdfName::Kids) {
             Some(a) => a,
@@ -187,7 +186,7 @@ impl PdfDocument {
         Ok(pages)
     }
 
-    fn read_object(&mut self, reference: Reference) -> Result<PdfObject> {
+    fn read_object(&mut self, reference: Reference) -> crate::Result<PdfObject> {
         need_u32(&mut self.source, reference.id)?;
         need_u32(&mut self.source, reference.gen as u32)?;
         need_keyword(&mut self.source, PdfKeyword::obj)?;
@@ -200,7 +199,7 @@ impl PdfDocument {
         }
     }
 
-    fn read_prefix(&mut self, reference: Reference) -> Result<Dictionary> {
+    fn read_prefix(&mut self, reference: Reference) -> crate::Result<Dictionary> {
         need_u32(&mut self.source, reference.id)?;
         need_u32(&mut self.source, reference.gen as u32)?;
         need_keyword(&mut self.source, PdfKeyword::obj)?;
@@ -208,13 +207,13 @@ impl PdfDocument {
         Ok(dictionary)
     }
 
-    fn read_dictionary(&mut self, reference: Reference) -> Result<Dictionary> {
+    fn read_dictionary(&mut self, reference: Reference) -> crate::Result<Dictionary> {
         let dictionary = self.read_prefix(reference)?;
         need_keyword(&mut self.source, PdfKeyword::endobj)?;
         Ok(dictionary)
     }
 
-    fn seek_reference(&mut self, reference: Reference) -> Result<u64> {
+    fn seek_reference(&mut self, reference: Reference) -> crate::Result<u64> {
         let id = reference.id as usize;
         if id >= self.xref.len() || self.xref[id].gen == FREE_GEN {
             Err(PdfError::InvalidReference)
@@ -223,7 +222,7 @@ impl PdfDocument {
         }
     }
 
-    fn dereference(&mut self, object: PdfObject) -> Result<PdfObject> {
+    fn dereference(&mut self, object: PdfObject) -> crate::Result<PdfObject> {
         match object {
             PdfObject::Reference(r) => {
                 self.seek_reference(r)?;
@@ -231,7 +230,7 @@ impl PdfDocument {
                 Ok(self.dereference(obj)?)
             }
             PdfObject::Array(array) => {
-                let a: Result<Vec<_>> = array.into_iter().map(|o| self.dereference(o)).collect();
+                let a: crate::Result<Vec<_>> = array.into_iter().map(|o| self.dereference(o)).collect();
                 Ok(PdfObject::Array(Box::new(a?)))
             }
             PdfObject::Dictionary(dict) => {
@@ -248,7 +247,7 @@ impl PdfDocument {
         }
     }
 
-    fn dereference_dictionary(&mut self, dictionary: Dictionary) -> Result<Dictionary> {
+    fn dereference_dictionary(&mut self, dictionary: Dictionary) -> crate::Result<Dictionary> {
         match self.dereference(PdfObject::Dictionary(dictionary))? {
             PdfObject::Dictionary(dictionary) => Ok(dictionary),
             _ => Err(PdfError::InternalError(
@@ -257,7 +256,7 @@ impl PdfDocument {
         }
     }
 
-    fn read_stream(&mut self, reference: Reference) -> Result<Vec<u8>> {
+    fn read_stream(&mut self, reference: Reference) -> crate::Result<Vec<u8>> {
         self.seek_reference(reference)?;
         let stream_dict = self.read_prefix(reference)?;
         need_keyword(&mut self.source, PdfKeyword::stream)?;
@@ -287,11 +286,11 @@ impl PdfDocument {
         decode_stream(buffer, stream_dict)
     }
 
-    fn read_streams(&mut self, _streams: &Array) -> Result<Vec<u8>> {
+    fn read_streams(&mut self, _streams: &Array) -> crate::Result<Vec<u8>> {
         Err(PdfError::InternalError("read_streams not implemented"))
     }
 
-    fn contents(&mut self, page_dict: &Dictionary) -> Result<Vec<u8>> {
+    fn contents(&mut self, page_dict: &Dictionary) -> crate::Result<Vec<u8>> {
         match page_dict.get(&PdfName::Contents) {
             Some(PdfObject::Reference(reference)) => self.read_stream(*reference),
             Some(PdfObject::Array(array)) => self.read_streams(array),
@@ -300,7 +299,7 @@ impl PdfDocument {
     }
 }
 
-fn find_trailer(position: u64, buffer: &[u8]) -> Result<u64> {
+fn find_trailer(position: u64, buffer: &[u8]) -> crate::Result<u64> {
     let trailer = "trailer".as_bytes();
     for i in (0..=buffer.len() - trailer.len()).rev() {
         if &buffer[i..i + trailer.len()] == trailer {
