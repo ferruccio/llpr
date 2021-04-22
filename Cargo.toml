@@ -1,9 +1,16 @@
 [package]
 name = "llpr"
-version = "0.1.0"
+description = "low-level PDF reader"
+version = "0.1.2"
 authors = ["Ferruccio Barletta <ferruccio.barletta@gmail.com>"]
 build = "build.rs"
 edition = "2018"
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/ferruccio/llpr"
+repository = "https://github.com/ferruccio/llpr"
+keywords = ["pdf"]
+categories = ["parsing"]
 
 [dependencies]
 phf = "0.8.0"
