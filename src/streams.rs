@@ -1,5 +1,5 @@
-use crate::PdfError;
 use crate::pdf_types::*;
+use crate::PdfError;
 
 use inflate::inflate_bytes_zlib;
 

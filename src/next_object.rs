@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::PdfError;
 use crate::next_token::next_token;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
+use crate::PdfError;
 
 pub fn next_object(source: &mut Box<dyn Source>) -> crate::Result<Option<PdfObject>> {
     match next_token(source)? {

@@ -1,6 +1,6 @@
-use crate::PdfError;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
+use crate::PdfError;
 
 fn pdf_name(name: &str) -> Option<PdfName> {
     NAMES.get(name).cloned()

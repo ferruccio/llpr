@@ -5,16 +5,16 @@ use crate::pdf_types::*;
 #[derive(Error, Debug)]
 pub enum PdfError {
     #[error("decompression error: {0:?}")]
-    DecompressionError (String),
+    DecompressionError(String),
 
     #[error("internal error: {0:?}")]
-    InternalError (&'static str),
+    InternalError(&'static str),
 
     #[error("invalid pdf file: {0:?}")]
-    InvalidPdf (&'static str),
+    InvalidPdf(&'static str),
 
     #[error("pdf keyword expected: {0:?}")]
-    KeywordExpected (PdfKeyword),
+    KeywordExpected(PdfKeyword),
 
     #[error("reference not found")]
     InvalidReference,

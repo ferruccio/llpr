@@ -1,12 +1,12 @@
 use std::io::{Read, SeekFrom};
 
-use crate::PdfError;
 use crate::dictionary::Access;
 use crate::next_object::{need_dictionary, need_keyword, need_u32, next_object};
 use crate::page_contents::PageContents;
 use crate::pdf_source::Source;
 use crate::pdf_types::*;
 use crate::streams::decode_stream;
+use crate::PdfError;
 
 const FREE_GEN: u16 = 0xffff;
 
@@ -230,7 +230,8 @@ impl PdfDocument {
                 Ok(self.dereference(obj)?)
             }
             PdfObject::Array(array) => {
-                let a: crate::Result<Vec<_>> = array.into_iter().map(|o| self.dereference(o)).collect();
+                let a: crate::Result<Vec<_>> =
+                    array.into_iter().map(|o| self.dereference(o)).collect();
                 Ok(PdfObject::Array(Box::new(a?)))
             }
             PdfObject::Dictionary(dict) => {
